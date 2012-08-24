@@ -109,7 +109,7 @@ function!  forms#dialog#textsearch#Make(title, findonly, ...)
 
   " Direction
   let ld = forms#newLabel({'text': "Direction"})
-  let group = forms#newButtonGroup({ 'member_type': 'forms#RadioButton'})
+  let group = forms#newButtonGroup({ 'member_kind': 'forms#RadioButton'})
 
   let rbdu = forms#newRadioButton({'tag': 'dir_up', 'group': group})
   function! rbdu.purpose() dict
@@ -269,6 +269,21 @@ function!  forms#dialog#textsearch#Make(title, findonly, ...)
     endif
   endif
   return ''
+endfunction
+
+" forms#dialog#textsearch#MakeTest: {{{1
+function! forms#dialog#textsearch#MakeTest() 
+  call forms#AppendInput({'type': 'Sleep', 'time': 5})
+  call forms#AppendInput({'type': 'Exit'})
+  let title = "Find Text"
+  let findonly = 1
+  call forms#dialog#textsearch#Make(title, findonly) 
+
+  call forms#AppendInput({'type': 'Sleep', 'time': 5})
+  call forms#AppendInput({'type': 'Exit'})
+  let title = "Find and Replace Text"
+  let findonly = 0
+  call forms#dialog#textsearch#Make(title, findonly) 
 endfunction
 
 "  Modelines: {{{1

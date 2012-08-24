@@ -8,7 +8,7 @@ function! forms#example#menusubmenu#Make()
   let action_two = forms#newAction({ 'execute': function("M0Action")})
   let action_two.name = 'TWO'
 
-  let group = forms#newButtonGroup({ 'member_type': 'forms#RadioButton'})
+  let group = forms#newButtonGroup({ 'member_kind': 'forms#RadioButton'})
 
   let subattrs = {
         \ 'items' : [
@@ -84,4 +84,10 @@ function! forms#example#menusubmenu#Make()
 
   let form = forms#newForm({'body': menu})
   call form.run()
+endfunction
+
+function! forms#example#menusubmenu#MakeTest()
+  call forms#AppendInput({'type': 'Sleep', 'time': 5})
+  call forms#AppendInput({'type': 'Exit'})
+  call forms#example#menusubmenu#Make()
 endfunction

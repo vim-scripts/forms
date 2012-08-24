@@ -58,7 +58,7 @@ capabilities. Then, I will go back to may original Scala project.
 A zip snapshot of the Forms library can be downloaded 
 from 
 
-    http://www.vim.org/scripts/script.php?script_id=4149
+    http://www.vim.org/scripts/script.php?script_id=4150
 
 In your Vim home, normally $HOME/.vim in Unix, unzip/untar the file:
 
@@ -92,7 +92,8 @@ or
 
 ## Directory layout
 
-After unpacking the Forms directory layout should look like: >
+After unpacking the Forms directory layout should look like:
+
     $HOME/.vim/
       autoload/
         forms.vim
@@ -135,8 +136,8 @@ In your .vimrc, add self as shown below:
 
       ....
 
-      let g:vim_addon_manager.plugin_sources['self'] = {'type': 'git', 'url': 'git://github.com/megaannum/self.git'}
-      let g:vim_addon_manager.plugin_sources['forms'] = {'type': 'git', 'url': 'git://github.com/megaannum/forms.git'}
+      let g:vim_addon_manager.plugin_sources['self'] = {'type': 'git', 'url': 'git://github.com/megaannum/self'}
+      let g:vim_addon_manager.plugin_sources['forms'] = {'type': 'git', 'url': 'git://github.com/megaannum/forms'}
 
 
       let plugins = [
@@ -202,6 +203,19 @@ all but Forms developers, at least for the non-power user, having
 a short, easy to remember, mnemonic mapping for menu and popup is certainly 
 reasonable.
 
+Also, there is the function 'forms#example#demo#MakeTest()' which displays
+each of the demonstrations for 5 seconds using:
+
+    :call forms#example#demo#MakeTest()
+
+While this does not exercise any of the interactive demo; it simply renders
+each in turn, it is good to see if anything causes error messages or
+does not display at all. Its the beginning (maybe) of a more complete
+Event driven tests. 
+
+One can also, choose a 'light' or 'dark' colorscheme prior to running
+the tests, just to see the differences.
+
 # Supported Platforms
 
 The Forms library ought to work on any platform where Vim has 256 colors
@@ -229,6 +243,11 @@ declared in the .vimrc file with:
 
 then, there ought not be a problem.
 
+## Linux urxvt256c & Vim
+
+Forms simply works on the version of rxvt that supports Unicode and 256
+colors, urxvt256c.
+
 ## Linux GVim
 
 Some testing has been done on the Linux GVim platform and all of the
@@ -246,7 +265,12 @@ No testing has been done on the Windows GVim configure. Feedback is welcome.
 
 [Vim location](http://www.vim.org/scripts/script.php?script_id=4150)
 
+## Tutorial
+
+There is a Forms tutorial which can be accessed at [Forms tutorial](https://github.com/megaannum/forms/blob/master/tutorial/forms/Tutorial.md).
+
 ## Acknowledgements and thanks
 
 - Marc Weber: provided initial release feedback identifying Vim 7.3 bug and
   let me debug it on one of his test machines.
+- Andy Wokula: provided feedback on help file syntax and GVim when font is latin1.

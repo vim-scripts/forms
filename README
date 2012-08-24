@@ -6,12 +6,12 @@ standard GUI widget types are supported by Forms such as labels, buttons,
 menus and layout constructs. It supports navigation, selection and input with
 a keyboard, as well as, navigation and selection with a mouse.
 
-Screen-shot of clone of GVim menu/popup:
+Screen-shot (background: dark/light) of clone of GVim menu/popup:
 https://github.com/megaannum/forms/tree/master/images/menu_file.png
 https://github.com/megaannum/forms/tree/master/images/menu_edit_colorscheme.png
 https://github.com/megaannum/forms/tree/master/images/popup_change.png
 
-Some example forms from the "Examples" form:
+Some example (background: dark/light) forms from the "Examples" form:
 https://github.com/megaannum/forms/tree/master/images/examples.png
 https://github.com/megaannum/forms/tree/master/images/examples_andmorelabels.png
 https://github.com/megaannum/forms/tree/master/images/examples_boxchars.png
@@ -32,6 +32,7 @@ https://github.com/megaannum/forms/tree/master/images/examples_morelabels.png
 https://github.com/megaannum/forms/tree/master/images/examples_palletdesigner.png
 https://github.com/megaannum/forms/tree/master/images/examples_popdownlist.png
 https://github.com/megaannum/forms/tree/master/images/examples_radiobuttons.png
+https://github.com/megaannum/forms/tree/master/images/examples_resize.png
 https://github.com/megaannum/forms/tree/master/images/examples_selectlists.png
 https://github.com/megaannum/forms/tree/master/images/examples_sliders.png
 https://github.com/megaannum/forms/tree/master/images/examples_subform.png
@@ -45,6 +46,8 @@ Code for the above examples can be found at:
 https://github.com/megaannum/forms/blob/master/autoload/forms/menu.vim
 https://github.com/megaannum/forms/tree/master/autoload/forms/dialog
 https://github.com/megaannum/forms/tree/master/autoload/forms/example
+
+Forms tutorial: https://github.com/megaannum/forms/blob/master/tutorial/forms/Tutorial.md
 
 A user can always stop a form with no side effects by entering <Esc>.
 This is basically a "panic button"; the user wants out.
