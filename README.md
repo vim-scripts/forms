@@ -81,7 +81,6 @@ over to you Vim home location.
 
 Vim has a number of third-party plugin managers. If you are using one
 you can configure it to automatically download and install Forms.
-TODO how to use VAM plugin manager
 
 ## Dependency
 
@@ -103,6 +102,7 @@ After unpacking the Forms directory layout should look like:
           examples/...
       doc/forms.vim
       plugin/forms.vim
+      tutorial/forms/...
 
 If a plugin manager is used, files/directories will be wherever the
 plugin manager is configured to install things.
@@ -246,7 +246,33 @@ then, there ought not be a problem.
 ## Linux urxvt256c & Vim
 
 Forms simply works on the version of rxvt that supports Unicode and 256
-colors, urxvt256c.
+colors, urxvt256c.  Add to .vimrc file:
+
+    set t_Co=256
+
+## Linux urxvt & Vim
+
+Forms works with 88 colore rxvt that supports Unicode urxvt.
+Add to .vimrc file:
+
+    set t_Co=88
+
+## Linux Konsole & Vim
+
+Forms works kconsole (though kconsole's UTF-8 9608 2588 FULL BLOCK
+does not render correctly).
+Add to .vimrc file:
+
+    set t_Co=256
+    let g:FORMS_COLOR_TERM_KONSOLE = 0
+
+## Linux Eterm & Vim
+
+Forms works eterm (well, I hope it works, no access to ETerm so could not test).
+Add to .vimrc file:
+
+    set t_Co=256
+    let g:FORMS_COLOR_TERM_ETERM = 0
 
 ## Linux GVim
 
