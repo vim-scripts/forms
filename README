@@ -114,3 +114,6 @@ a short, easy to remember, mnemonic mapping for menu and popup is certainly
 reasonable.
 
 Source can be found at: https://github.com/megaannum/forms
+
+The Forms library is currently being used in the following scripts: 
+http://www.vim.org/scripts/script.php?script_id=4240
