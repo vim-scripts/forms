@@ -1,7 +1,7 @@
 *forms.txt*          For Vim version 7.3              Last change: 2012 Oct  9
 
 Author:      Richard Emberson 
-Version:     1.15
+Version:     1.20
 Title:       Forms Library
 Homepage:    TODO
 
@@ -186,13 +186,11 @@ The first enables/disables the section of code that generates the
 window dump and the second set the name of the dump file.
 
 Enable window dump: 
-    let g:forms_window_dump_enabled = g:self#IS_TRUE
+    let g:forms_window_dump_enabled = 1
 Disable window dump: 
-    let g:forms_window_dump_enabled = g:self#IS_FALSE
+    let g:forms_window_dump_enabled = 0
 
 The default setting if true (1), window dumps are enabled.
-(note that: g:self#IS_TRUE == 1 and g:self#IS_FALSE == 0 are
-variables defined in the {Self} library)
 
 Set window dump file name: 
     let g:forms_window_dump_file = "some_file_name"
@@ -214,9 +212,9 @@ Normally, control-r maps to the 'redo' command, but in Forms it
 creates a window image.
 
 Enable window image:
-    let g:forms_window_image_enabled = g:self#IS_TRUE
+    let g:forms_window_image_enabled = 1
 Disable window image:
-    let g:forms_window_image_enabled = g:self#IS_FALSE
+    let g:forms_window_image_enabled = 0
 
 The default setting if true (1), window images are enabled.
 Invoking this will overwrite any existing file.
@@ -231,9 +229,9 @@ requires both its enabling and one must uncomment and/or create new log
 statements (thats right, currently all log statements are commented out).
 
 To enable logging the following should be defined: 
-    let g:forms_log_enabled = g:self#IS_TRUE
+    let g:forms_log_enabled = 1
 and to disable logging: 
-    let g:forms_log_enabled = g:self#IS_FALSE
+    let g:forms_log_enabled = 0
 
 To set the log file name:
     let g:forms_log_file = "some_file_name"
@@ -620,6 +618,12 @@ designed to interact with the user (i.e., accept user input).
             Similar to Text but all lines must be the same length.
         SelectList ~
             A list of selections.
+        ForestViewer ~
+            View one or more Trees. A Tree is a hierarchy of Nodes.
+	    Can be used by itself or with a companion NodeViewer.
+        NodeViewer ~
+            View a given Node.
+	    Can be used by itself or with a companion ForestViewer.
         PopDownList ~
             A pop down list of selections in a menu.
         HSlider ~
@@ -915,7 +919,7 @@ and popup menus. The code is located in 'autoload/forms/menu.vim'.
        variable that controls who/when the {Forms} library can be reloaded.
        If you want to develop {Forms} code, consider setting the variable to
        true in your .vimrc prior loading the {Self} library: 
-         let g:self#IN_DEVELOPMENT_MODE = g:self#IS_TRUE
+         let g:self#IN_DEVELOPMENT_MODE = 1
 
        The default setting is to false.
 
@@ -1058,6 +1062,24 @@ and popup menus. The code is located in 'autoload/forms/menu.vim'.
 
 ==============================================================================
 12. Release notes                                      *forms-release-notes*
+1.21   - Fix: ~
+    Form demo now open in tab.
+    Fixed dotvimviewer demo to display '.vim' dir.
+1.20   - Fix: ~
+    Forms Label checks that 'text' is String or Number.
+    Add 'hide' method to SelectList to clear selection item highlight.
+    Fixed 'Form too big' width message.
+    Removed Deck __textblock and simply space-out deck prior to each draw.
+1.19   - Fix: ~
+    Added NodeViewer (node viewer).
+    Added ForestViewer/NodeViewer demo.
+1.18   - Fix: ~
+    Added ForestViewer (muilti-hierarchical node viewer).
+    Replaced IS_TRUE/IS_FALSE with 1/0.
+1.17   - Fix: ~
+    Form Command event not executing properly.
+1.16   - Fix: ~
+    Made all character varibles globals rather than per-buffer.
 1.15   - Fix: ~
     Second try, fixed both Tab and read-only page display.
 1.14   - Fix: ~

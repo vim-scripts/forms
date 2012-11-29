@@ -5,8 +5,8 @@
 " File:          forms.vim
 " Summary:       Vim Form Library
 " Author:        Richard Emberson <richard.n.embersonATgmailDOTcom>
-" Last Modified: 10/5/2012
-" Version:       1.15
+" Last Modified: 2012
+" Version:       See: autoload/forms/version.vim
 " Modifications:
 "  1.0 : initial public release.
 "
@@ -59,9 +59,13 @@
 if &cp || ( exists("g:loaded_forms") && ! g:self#IN_DEVELOPMENT_MODE )
   finish
 endif
-let g:loaded_forms = 'v1.0'
+let g:loaded_forms = forms#version#Str()
 let s:keepcpo = &cpo
 set cpo&vim
+
+function! forms#version()
+  return forms#version#Str()
+endfunction
 
 " ++++++++++++++++++++++++++++++++++++++++++++
 " Reload : {{{1
@@ -73,7 +77,7 @@ set cpo&vim
 "    call self#reload('forms#')
 "    call self#reload('self#')
 "  This function is only available in development mode, i.e.,
-"    g:self#IN_DEVELOPMENT_MODE == self#IS_TRUE
+"    g:self#IN_DEVELOPMENT_MODE == 1
 "  To make reloading of autoloaded forms functions simple, one might
 "    want to define a mapping:
 "      map <Leader>fr :call forms#reload()
@@ -100,7 +104,7 @@ endif
 " Enable/Disable window text dump. 
 " A window dump occurs when <C-W> is entered.
 if ! exists("g:forms_window_dump_enabled") || g:self#IN_DEVELOPMENT_MODE
-  let g:forms_window_dump_enabled = g:self#IS_TRUE
+  let g:forms_window_dump_enabled = 1
 endif
 
 " If window image is enabled, the file to be used
@@ -111,9 +115,9 @@ endif
 " A window image occurs when <C-R> is entered.
 if ! exists("g:forms_window_image_enabled") || g:self#IN_DEVELOPMENT_MODE
   if executable("import")
-    let g:forms_window_image_enabled = g:self#IS_TRUE
+    let g:forms_window_image_enabled = 1
   else
-    let g:forms_window_image_enabled = g:self#IS_FALSE
+    let g:forms_window_image_enabled = 0
   endif
 endif
 
@@ -129,7 +133,7 @@ if ! exists("g:forms_log_file") || g:self#IN_DEVELOPMENT_MODE
 endif
 
 if ! exists("g:forms_log_enabled") || g:self#IN_DEVELOPMENT_MODE
-  let g:forms_log_enabled = g:self#IS_FALSE
+  let g:forms_log_enabled = 0
 endif
 
 function! forms#log(msg) 
@@ -963,7 +967,7 @@ function! forms#InputsSame(input1, input2)
   let type2 = type(a:input2)
 
   if type1 != type2
-    return g:self#IS_FALSE
+    return 0
   elseif type1 == g:self#DICTIONARY_TYPE
     return input1.type == input2.type
   elseif type1 == g:self#NUMBER_TYPE
@@ -2521,9 +2525,15 @@ function! forms#loadGlyphPrototype()
     "  parameters: None
     " ------------------------------------------------------------ 
     function! FORMS_GLYPH_canFocus() dict
-      return g:self#IS_FALSE
+      return 0
     endfunction
     let g:forms#Glyph.canFocus = function("FORMS_GLYPH_canFocus")
+
+" XXXXXXXXXXXXXXXXX
+    function! FORMS_GLYPH_generateFocusList(flist) dict
+      throw "Glyph: must define in child: generateFocusList"
+    endfunction
+    let g:forms#Glyph.generateFocusList = function("FORMS_GLYPH_generateFocusList")
 
     " ------------------------------------------------------------ 
     " g:forms#Glyph.gainFocus: {{{3
@@ -2745,6 +2755,14 @@ function! forms#loadLeafPrototype()
       return g:LEAF_NODE
     endfunction
     let g:forms#Leaf.nodeType = function("FORMS_LEAF_nodeType")
+
+" XXXXXXXXXXXXXXXXX
+    function! FORMS_LEAF_generateFocusList(flist) dict
+      if self.canFocus() 
+        call add(a:flist, self) 
+      endif
+    endfunction
+    let g:forms#Leaf.generateFocusList = function("FORMS_LEAF_generateFocusList")
 
   endif
 
@@ -3224,6 +3242,23 @@ function! forms#loadLabelPrototype()
   if !exists("g:forms#Label")
     let g:forms#Label = forms#loadLeafPrototype().clone('forms#Label')
     let g:forms#Label.__text = ''
+
+    function! FORMS_LABEL_init(attrs) dict
+      call call(g:forms#Leaf.init, [a:attrs], self)
+
+      let text = self.__text
+      if type(text) == g:self#NUMBER_TYPE
+        unlet self.__text
+        let self.__text = "" . text
+      elseif type(text) == g:self#STRING_TYPE
+        " do nothing
+      else
+        throw "forms#loadLabelPrototype.init: text parameter must be String or Number: " . string(text)
+      endif
+
+      return self
+    endfunction
+    let g:forms#Label.init = function("FORMS_LABEL_init")
 
     function! FORMS_LABEL_reinit(attrs) dict
 " call forms#log("forms#Label.reinit TOP")
@@ -3900,7 +3935,7 @@ function! forms#loadFixedLengthFieldPrototype()
     let g:forms#FixedLengthField = forms#loadLeafPrototype().clone('forms#FixedLengthField')
     let g:forms#FixedLengthField.__size = 0
     let g:forms#FixedLengthField.__init_text = ''
-    let g:forms#FixedLengthField.__clearInitText = g:self#IS_FALSE
+    let g:forms#FixedLengthField.__clearInitText = 0
     let g:forms#FixedLengthField.__pos = 0
     let g:forms#FixedLengthField.__text = ''
     let g:forms#FixedLengthField.__on_selection_action = g:forms_Util.emptyAction()
@@ -3925,7 +3960,7 @@ function! forms#loadFixedLengthFieldPrototype()
 
       let self.__size = 0
       let self.__init_text = ''
-      let self.__clearInitText = g:self#IS_FALSE
+      let self.__clearInitText = 0
       let self.__pos = 0
       let self.__text = ''
       let self.__on_selection_action = g:forms_Util.emptyAction()
@@ -4016,7 +4051,7 @@ function! forms#loadFixedLengthFieldPrototype()
         if a:nr >= 32 && a:nr < 127
           if self.__clearInitText
             call self.__reset('')
-            let self.__clearInitText = g:self#IS_FALSE
+            let self.__clearInitText = 0
           endif
 
           let slen = strchars(self.__text)
@@ -4051,7 +4086,7 @@ function! forms#loadFixedLengthFieldPrototype()
         elseif a:nr == "\<Del>" || a:nr == "\<BS>"
           if self.__clearInitText
             call self.__reset('')
-            let self.__clearInitText = g:self#IS_FALSE
+            let self.__clearInitText = 0
           endif
 
           let slen = strchars(self.__text)
@@ -4158,7 +4193,7 @@ function! forms#loadFixedLengthFieldPrototype()
       let self.__pos = 0
 
       if a:initTxt != ''
-        let self.__clearInitText = g:self#IS_TRUE
+        let self.__clearInitText = 1
         let self.__text = a:initTxt
       else
         let self.__text = ''
@@ -4217,7 +4252,7 @@ function! forms#loadVariableLengthFieldPrototype()
     let g:forms#VariableLengthField = forms#loadLeafPrototype().clone('forms#VariableLengthField')
     let g:forms#VariableLengthField.__size = 0
     let g:forms#VariableLengthField.__init_text = ''
-    let g:forms#VariableLengthField.__clearInitText = g:self#IS_FALSE
+    let g:forms#VariableLengthField.__clearInitText = 0
     let g:forms#VariableLengthField.__pos = 0
     let g:forms#VariableLengthField.__win_start = 0
     let g:forms#VariableLengthField.__text = ''
@@ -4243,7 +4278,7 @@ function! forms#loadVariableLengthFieldPrototype()
 
       let self.__size = 0
       let self.__init_text = ''
-      let self.__clearInitText = g:self#IS_FALSE
+      let self.__clearInitText = 0
       let self.__pos = 0
       let self.__win_start = 0
       let self.__text = ''
@@ -4350,7 +4385,7 @@ function! forms#loadVariableLengthFieldPrototype()
         if a:nr >= 32 && a:nr < 127
           if self.__clearInitText
             call self.__reset('')
-            let self.__clearInitText = g:self#IS_FALSE
+            let self.__clearInitText = 0
           endif
 
           let slen = strchars(self.__text)
@@ -4378,7 +4413,7 @@ function! forms#loadVariableLengthFieldPrototype()
         elseif a:nr == "\<Del>" || a:nr == "\<BS>"
           if self.__clearInitText
             call self.__reset('')
-            let self.__clearInitText = g:self#IS_FALSE
+            let self.__clearInitText = 0
           endif
 
           let slen = strchars(self.__text)
@@ -4514,7 +4549,7 @@ function! forms#loadVariableLengthFieldPrototype()
       let self.__text = ''
 
       if a:initTxt != ''
-        let self.__clearInitText = g:self#IS_TRUE
+        let self.__clearInitText = 1
         let self.__text = a:initTxt
       endif
       let slen = strchars(self.__text)
@@ -4576,7 +4611,7 @@ function! forms#loadTextEditorPrototype()
     let g:forms#TextEditor.__width = 15
     let g:forms#TextEditor.__height = 5
     let g:forms#TextEditor.__init_text = []
-    let g:forms#TextEditor.__clearInitText = g:self#IS_FALSE
+    let g:forms#TextEditor.__clearInitText = 0
     let g:forms#TextEditor.__x_pos = 0
     let g:forms#TextEditor.__y_pos = 0
     let g:forms#TextEditor.__x_win_start = 0
@@ -4613,7 +4648,7 @@ function! forms#loadTextEditorPrototype()
       let self.__width = 15
       let self.__height = 5
       let self.__init_text = []
-      let self.__clearInitText = g:self#IS_FALSE
+      let self.__clearInitText = 0
       let self.__x_pos = 0
       let self.__y_pos = 0
       let self.__x_win_start = 0
@@ -4727,7 +4762,7 @@ function! forms#loadTextEditorPrototype()
       if (self.__status == g:IS_ENABLED)
         if self.__clearInitText
           call self.__reset('')
-          let self.__clearInitText = g:self#IS_FALSE
+          let self.__clearInitText = 0
         endif
 
         let x_pos = self.__x_pos
@@ -4740,7 +4775,7 @@ function! forms#loadTextEditorPrototype()
         let str = txtlns[y_pos]
         let slen = strchars(str)
 
-        let adjust_x_win_start = g:self#IS_TRUE
+        let adjust_x_win_start = 1
 
         let c = nr2char(a:nr)
         if a:nr >= 32 && a:nr < 127
@@ -4786,7 +4821,7 @@ function! forms#loadTextEditorPrototype()
                 else
                   let self.__x_win_start = slen - width
                 endif
-                let adjust_x_win_start = g:self#IS_FALSE
+                let adjust_x_win_start = 0
 
               endif
             else
@@ -4834,7 +4869,7 @@ function! forms#loadTextEditorPrototype()
           let self.__x_pos = 0
           let self.__y_pos += 1
           let self.__x_win_start = 0
-          let adjust_x_win_start = g:self#IS_FALSE
+          let adjust_x_win_start = 0
 
           let handled = 1
           call forms#ViewerRedrawListAdd(self) 
@@ -4878,7 +4913,7 @@ function! forms#loadTextEditorPrototype()
               endif
             endif 
 
-            let adjust_x_win_start = g:self#IS_FALSE
+            let adjust_x_win_start = 0
             call forms#ViewerRedrawListAdd(self) 
           endif
 
@@ -4905,7 +4940,7 @@ function! forms#loadTextEditorPrototype()
                 let self.__x_pos = slenD
               endif
             endif 
-            let adjust_x_win_start = g:self#IS_FALSE
+            let adjust_x_win_start = 0
             call forms#ViewerRedrawListAdd(self) 
           endif
 
@@ -4951,7 +4986,7 @@ function! forms#loadTextEditorPrototype()
         let x_win_start = self.__x_win_start
         let y_win_start = self.__y_win_start
         let txtlns = self.__textlines
-        let xlen = strchars(txtlns[y_pos])
+        let xlen = empty(txtlns) ? 0 : strchars(txtlns[y_pos])
         let ylen = len(txtlns)
 
 "  call forms#log("g:forms#TextEditor.draw x_pos=" .  x_pos)
@@ -5011,7 +5046,7 @@ function! forms#loadTextEditorPrototype()
 
     function! FORMS_TEXT_EDITOR___reset(initTxt) dict
       if type(a:initTxt) == g:self#STRING_TYPE
-        let self.__clearInitText = g:self#IS_TRUE
+        let self.__clearInitText = 1
         let self.__textlines = [ a:initTxt ]
         let xlen = strchars(a:initTxt)
         let self.__x_pos = xlen
@@ -5019,7 +5054,7 @@ function! forms#loadTextEditorPrototype()
         let self.__x_win_start = xlen <= self.__width ? 0 : xlen - self.__width
       elseif type(a:initTxt) == g:self#LIST_TYPE 
         if len(a:initTxt) > 0
-          let self.__clearInitText = g:self#IS_TRUE
+          let self.__clearInitText = 1
           let self.__textlines = copy(a:initTxt)
           let ylen = len(self.__textlines)
           let xlen = strchars(self.__textlines[ylen-1])
@@ -5360,6 +5395,17 @@ endif
     endfunction
     let g:forms#SelectList.requestedSize = function("FORMS_SELECT_LIST_requestedSize")
 
+    function! FORMS_SELECT_LIST_hide() dict
+      call call(g:forms#Leaf.hide, [], self)
+
+      let selections = self.__selections
+      for selection in selections
+        let [idx, sid] = selection
+        call ClearSelectionId(sid)
+      endfor
+    endfunction
+    let g:forms#SelectList.hide = function("FORMS_SELECT_LIST_hide")
+
     function! FORMS_SELECT_LIST_selection() dict
       return self.__pos
     endfunction
@@ -5398,7 +5444,6 @@ endif
     let g:forms#SelectList.handleEvent = function("FORMS_SELECT_LIST_handleEvent")
 
     function! FORMS_SELECT_LIST_handleChar(nr) dict
-
       let handled = 0
       if (self.__status == g:IS_ENABLED)
         let size = self.__size
@@ -5483,19 +5528,19 @@ endif
 
     function! FORMS_SELECT_LIST_adjustWinStart() dict
 "call forms#logforce("g:forms#SelectList.adjustWinStart TOP")
-      let needs_redraw = g:self#IS_FALSE
+      let needs_redraw = 0
       let size = self.__size
       let pos = self.__pos
       if size > 0
         if pos >= self.__win_start + size
           while pos >= self.__win_start + size
             let self.__win_start += 1
-            let needs_redraw = g:self#IS_TRUE
+            let needs_redraw = 1
           endwhile
         elseif self.__win_start > 0 && pos < self.__win_start
           while self.__win_start > 0 && pos < self.__win_start
             let self.__win_start -= 1
-            let needs_redraw = g:self#IS_TRUE
+            let needs_redraw = 1
           endwhile
         endif
       endif
@@ -5780,6 +5825,2020 @@ endfunction
 " ------------------------------------------------------------ 
 function! forms#newSelectList(attrs)
   return forms#loadSelectListPrototype().clone().init(a:attrs)
+endfunction
+
+" ------------------------------------------------------------ 
+" ------------------------------------------------------------ 
+"  ForestViewer 
+" ------------------------------------------------------------ 
+" ------------------------------------------------------------ 
+
+" ------------------------------------------------------------ 
+"  ForestViewer utility functions
+" ------------------------------------------------------------ 
+
+" does parent_path contain child_path
+"  len(child_path) >= len(parent_path) and len2 elements equal
+"  return 0 or number of matching nodes
+function! s:contains(parent_path, child_path)
+  let parent_len = len(a:parent_path)
+  let child_len = len(a:child_path)
+  if child_len < parent_len
+    return 0
+  else
+    let cnt = 0
+    while cnt < parent_len
+      if a:parent_path[cnt] != a:child_path[cnt]
+        return 0
+      endif
+      let cnt += 1
+    endwhile
+    return cnt
+  endif
+endfunction
+
+" assumes that 1) child_path contains parent_path and 2) that child_path
+"  is longer.
+"  return [0, errmsg] or [1, name]
+function! s:lookup_child_name(parent_path, child_path)
+  let parent_len = len(a:parent_path)
+  let child_len = len(a:child_path)
+  if child_len <= parent_len
+    return [0, 'child path len not greater than parent path length']
+  else
+    return [1, a:child_path[parent_len]]
+  endif
+endfunction
+
+function! s:IgnoreCaseSortCompare(t1, t2)
+  return a:t1 ==? a:t2 ? 0 : a:t1 >? a:t2 ? 1 : -1
+endfunction
+function! s:MatchCaseSortCompare(t1, t2)
+  return a:t1 ==# a:t2 ? 0 : a:t1 ># a:t2 ? 1 : -1
+endfunction
+
+" ------------------------------------------------------------ 
+"  ForestViewer support classes
+" ------------------------------------------------------------ 
+
+" ------------------------
+"  Forest
+let s:Forest = {}
+let s:Forest.trees = {}
+let s:Forest.content = []
+let s:Forest.max_content_len = -1
+let s:Forest.top_node_full_name = 1
+let s:Forest.match_case_sort = 1
+let s:Forest.sort_direction = 0
+let s:Forest.content_order = 'non-leaf-first'
+
+" returns list of [name, isleaf] pairs
+function! FORMS_FOREST_generate_sub_path_info(path) dict
+  throw "Developer must create implementation of FORMS_FOREST_generate_sub_path_info"
+endfunction
+let s:Forest.generateSubPathInfo = function("FORMS_FOREST_generate_sub_path_info")
+
+" return 0 or 1
+function! FORMS_FOREST_has_sub_path_info(path) dict
+  throw "Developer must create implementation of FORMS_FOREST_has_sub_path_info"
+endfunction
+let s:Forest.hasSubPathInfo = function("FORMS_FOREST_has_sub_path_info")
+
+function! FORMS_FOREST_path_to_string(path) dict
+  throw "Developer must create implementation of FORMS_FOREST_path_to_string"
+endfunction
+let s:Forest.pathToString = function("FORMS_FOREST_path_to_string")
+
+function! FORMS_FOREST_accept_name(name, path) dict
+  return 1
+endfunction
+let s:Forest.acceptName = function("FORMS_FOREST_accept_name")
+
+function! FORMS_FOREST_changed() dict
+  for key in keys(self.trees)
+    let tree = self.trees[key]
+    let tree.changed = 1
+  endfor
+endfunction
+let s:Forest.changed = function("FORMS_FOREST_changed")
+
+function! FORMS_FOREST_add_tree(tree, ...) dict
+" call forms#log("FORMS_FOREST_add_tree TOP")
+  if type(a:tree) == g:self#DICTIONARY_TYPE
+    let a:tree.forest = self
+    let self.trees[a:tree.node.name] = a:tree
+  elseif type(a:tree) == g:self#LIST_TYPE
+    for t in a:tree
+      call self.addTree(t)
+    endfor
+  else
+    throw "FORMS_FOREST_add_tree: bad tree type: " . string(a:tree)
+  endif
+  if a:0 > 0
+    for t in a:0000
+      call self.addTree(t)
+    endfor
+  endif
+endfunction
+let s:Forest.addTree = function("FORMS_FOREST_add_tree")
+
+" return [display, node]
+function! FORMS_FOREST_draw() dict
+" call forms#log("FORMS_FOREST_draw TOP")
+  let l:content = []
+
+  let keys = self.match_case_sort
+          \ ? sort(keys(self.trees), "s:MatchCaseSortCompare")
+          \ : sort(keys(self.trees), "s:IgnoreCaseSortCompare")
+
+  if self.sort_direction
+    call reverse(keys)
+  endif
+
+  let self.max_content_len = -1
+  for key in keys
+    let tree = self.trees[key]
+    let l:content += tree.draw()
+" call forms#log("FORMS_FOREST_draw tree.max_content_len=". tree.max_content_len)
+    if tree.max_content_len > self.max_content_len
+      let self.max_content_len = tree.max_content_len
+    endif
+  endfor
+" call forms#log("FORMS_FOREST_draw self.max_content_len=". self.max_content_len)
+
+" call forms#log("FORMS_FOREST_draw BOTTOM")
+  let self.content = l:content
+  return l:content
+endfunction
+let s:Forest.draw = function("FORMS_FOREST_draw")
+
+function! forms#CreateForest()
+  let l:forest = deepcopy(s:Forest)
+  return l:forest
+endfunction
+
+" ------------------------
+
+" ------------------------
+"  Tree
+let s:Tree = {}
+let s:Tree.hasLeaf = 0
+let s:Tree.changed = 1
+let s:Tree.max_content_len = -1
+let s:Tree.forest = {}
+let s:Tree.content = []
+let s:Tree.node = {}
+let s:Tree.current_path = []
+
+function! FORMS_TREE_draw() dict
+" call forms#log("FORMS_TREE_draw TOP")
+  if self.changed
+    let content = []
+    call self.node.update(self)
+    let self.max_content_len = -1
+    call self.node.draw(self, content, 0)
+" call forms#log("FORMS_TREE_draw AFTER len(content)=". len(content))
+    let self.changed = 0
+    let self.content = content
+  endif
+"call forms#log("FORMS_TREE_draw content=". string(self.content))
+" call forms#log("FORMS_TREE_draw BOTTOM")
+  return self.content
+endfunction
+let s:Tree.draw = function("FORMS_TREE_draw")
+
+" return [0, errmsg] or [1, node]
+function! FORMS_TREE_lookup_child(path) dict
+" call forms#log("FORMS_TREE_lookup_child TOP")
+  let nos_matching_nodes = s:contains(self.node.path, a:path)
+" call forms#log("FORMS_TREE_lookup_child nos_matching_nodes=". nos_matching_nodes)
+  if nos_matching_nodes == 0
+    return [0, "Tree with path '". string(self.node.path) ."' does not contain path '" . string(a:path) ."'"]
+  endif
+
+  let child_path = a:path[nos_matching_nodes : ]
+" call forms#log("FORMS_TREE_lookup_child child_path=". string(child_path))
+  let cplen = len(child_path)
+" call forms#log("FORMS_TREE_lookup_child cplen=". cplen)
+
+  let node = self.node
+  let cnt = 0
+  while cnt < cplen
+    let p = node.path + [ child_path[cnt] ]
+" call forms#log("FORMS_TREE_lookup_child p=". string(p))
+    let [found, child] = node.lookupChild(self, p)
+    if found
+      let node = child
+    else
+      return [0, child]
+    endif
+
+    let cnt += 1
+  endwhile
+
+" call forms#log("FORMS_TREE_lookup_child node.name=". node.name)
+  return [1, node]
+
+endfunction
+let s:Tree.lookupChild = function("FORMS_TREE_lookup_child")
+
+" return node at path which is toggled
+function! FORMS_TREE_toggle(path) dict
+" call forms#log("FORMS_TREE_toggle TOP")
+  if s:contains(self.node.path, a:path) == 0
+    throw "Tree with path '". string(self.node.path) ."' does not contain path '" . string(a:path) ."'"
+  endif
+  
+  let node = self.node.toggle(self, a:path)
+  let self.changed = 1
+" call forms#log("FORMS_TREE_toggle BOTTOM node.name=". node.name)
+  return node
+endfunction
+let s:Tree.toggle = function("FORMS_TREE_toggle")
+
+function! FORMS_TREE_goto(path) dict
+" call forms#log("FORMS_TREE_goto TOP path=". string(a:path))
+  if self.current_path != a:path
+
+    let node = self.node.toggle(self, a:path)
+    call node.open(self, a:path)
+    " call self.node.open(self, a:path)
+
+    let self.current_path = a:path
+    let self.changed = 1
+
+    return node
+  endif
+endfunction
+let s:Tree.goto = function("FORMS_TREE_goto")
+
+function! forms#CreateTree(node)
+  let l:tree = deepcopy(s:Tree)
+  let l:tree.node = a:node
+  let l:tree.current_path = deepcopy(a:node.path)
+  return l:tree
+endfunction
+
+" ------------------------
+
+" ------------------------
+"  Node
+let s:Node = {}
+let s:Node.name = ''
+" let s:Node.is_leaf = 0
+let s:Node.path = []
+let s:Node.is_open = 0
+" children is either Number (1 has children, 0 no children leaf, -1 dont know yet) 
+"   or Dictionary with child nodes
+let s:Node.children = -1
+
+function! FORMS_NODE_init(path, isleaf) dict
+" call forms#log("FORMS_NODE_init TOP")
+" call forms#log("FORMS_NODE_init path=". string(a:path))
+" call forms#log("FORMS_NODE_init isleaf=". a:isleaf)
+  let self.name = a:path[len(a:path)-1]
+" call forms#log("FORMS_NODE_init name=". self.name)
+  let self.path = a:path
+  " let self.is_leaf = a:isleaf
+  let self.children = a:isleaf ? 0 : 1
+endfunction
+let s:Node.init = function("FORMS_NODE_init")
+
+function! FORMS_NODE_update(tree) dict
+" call forms#log("FORMS_NODE_update path=". string(self.path))
+  let subPathInfo = a:tree.forest.generateSubPathInfo(self.path)
+" call forms#log("FORMS_NODE_update subPathInfo=". string(subPathInfo))
+
+  let nosSubPathNames = len(subPathInfo)
+  " Get child names
+  let newNames = {}
+  for [name, is_leaf] in subPathInfo
+    if a:tree.forest.acceptName(name, self.path) 
+      let newNames[name] = [name, is_leaf]
+    endif
+  endfor
+
+  " Remove existing child names that no longer exist
+  " TODO combine with above loop
+  if type(self.children) == g:self#DICTIONARY_TYPE
+    for name in keys(self.children)
+      if !has_key(newNames, name)
+        call remove(self.children, name)
+      endif
+    endfor
+  endif
+  
+" call forms#log("FORMS_NODE_update children=". string(self.children))
+" call forms#log("FORMS_NODE_update before create")
+  " Create nodes for new children
+  if type(self.children) == g:self#DICTIONARY_TYPE
+    for name in keys(newNames)
+      if !has_key(self.children, name)
+" call forms#log("FORMS_NODE_update create one node name=". name)
+        let [_, isleaf] = newNames[name]
+        let node = forms#CreateNode()
+        let path = self.path + [name]
+        call node.init(path, isleaf)
+        let self.children[name] = node 
+      endif
+    endfor
+  elseif nosSubPathNames > 0
+    " children is a Number
+    unlet self.children
+    let self.children = {}
+
+    for name in keys(newNames)
+" call forms#log("FORMS_NODE_update create two node name=". name)
+      let [_, isleaf] = newNames[name]
+      let node = forms#CreateNode()
+      let path = self.path + [name]
+      call node.init(path, isleaf)
+      let self.children[name] = node 
+    endfor
+  endif
+" call forms#log("FORMS_NODE_update after create")
+" call forms#log("FORMS_NODE_update children=". string(self.children))
+
+  " Update children which are opened 
+  if type(self.children) == g:self#DICTIONARY_TYPE
+    for name in keys(self.children)
+      let child = self.children[name]
+      if child.is_open
+        call child.update(a:tree)
+      endif
+    endfor
+  endif
+
+  " let self.is_open = 1
+" call forms#log("FORMS_NODE_update BOTTOM")
+endfunction
+let s:Node.update = function("FORMS_NODE_update")
+
+" return [0, errmsg] or [1, child]
+function! FORMS_NODE_lookup_child(tree, path) dict
+  let [found, name] = s:lookup_child_name(self.path, a:path)
+  if ! found
+    let errmsg = "FORMS_NODE_update self.path=". string(self.path) .", a:path=". string(a:path) .": errmsg=". name
+    return [0, errmsg]
+  endif
+
+  if type(self.children) == g:self#NUMBER_TYPE
+    call self.update(a:tree)
+  endif
+
+  if type(self.children) != g:self#DICTIONARY_TYPE || !has_key(self.children, name)
+    let errmsg = "FORMS_NODE_update self.path=". string(self.path) .", a:path=". string(a:path) .": does not have child=". name
+    return [0, errmsg]
+  endif
+
+  let child = self.children[name]
+  return [1, child]
+endfunction
+let s:Node.lookupChild = function("FORMS_NODE_lookup_child")
+
+" return [0, _] if no parent, [1, parent_node]
+function! FORMS_NODE_get_parent(tree) dict
+  let nplen = len(self.path)
+  let parent_path = self.path[ : (nplen-2)]
+  let [found, parent_node] = a:tree.lookupChild(parent_path)
+  if found
+    return [1, parent_node]
+  else
+    return [0, {}]
+  endif
+endfunction
+let s:Node.getParent = function("FORMS_NODE_get_parent")
+
+function! FORMS_NODE_toggle(tree, path) dict
+" call forms#log("FORMS_NODE_toggle TOP")
+  if self.path == a:path
+    let self.is_open = !self.is_open
+    if self.is_open
+      call self.update(a:tree)
+    endif
+
+    return self
+
+  else
+    if ! self.is_open
+      call self.update(a:tree)
+    endif
+    let [found, child] = self.lookupChild(a:tree, a:path)
+    if found
+      let self.is_open = 1
+      return child.toggle(a:tree, a:path)
+    else
+      " call forms#log(child)
+      throw child
+    endif
+  endif
+" call forms#log("FORMS_NODE_toggle BOTTOM")
+endfunction
+let s:Node.toggle = function("FORMS_NODE_toggle")
+
+function! FORMS_NODE_open(tree, path) dict
+" call forms#log("FORMS_NODE_open TOP")
+
+  if self.path == a:path
+    call self.update(a:tree)
+  else
+    let [found, child] = self.lookupChild(a:tree, a:path)
+    if found
+      call child.open(a:tree, a:path)
+    else
+      call forms#log(child)
+    endif
+  endif
+
+" call forms#log("FORMS_NODE_open BOTTOM")
+endfunction
+let s:Node.open = function("FORMS_NODE_open")
+
+function! FORMS_NODE_draw(tree, content, depth) dict
+" call forms#log("FORMS_NODE_draw TOP name=". self.name)
+" call forms#log("FORMS_NODE_draw TOP children=". string(self.children))
+
+  let l:display = repeat(' ', a:depth*2)
+
+  if type(self.children) == g:self#NUMBER_TYPE
+    if self.children
+      " non leaf
+      let l:display .= '+ '
+    else
+      " leaf
+      let l:display .= '  '
+    endif
+  else
+    if self.is_open
+      let l:display .= '- '
+    else
+      let l:display .= '+ '
+    endif
+  endif
+
+  if a:depth == 0 && a:tree.forest.top_node_full_name
+    let l:display .= a:tree.forest.pathToString(self.path)
+  else
+    let l:display .= self.name
+  endif
+" call forms#log("FORMS_NODE_draw display='". l:display ."'")
+  let dlen = len(l:display)
+" call forms#log("FORMS_NODE_draw dlen=". dlen)
+  if dlen > a:tree.max_content_len
+    let a:tree.max_content_len = dlen
+  endif
+
+" call forms#log("FORMS_NODE_draw a:tree.max_content_len=". a:tree.max_content_len)
+  let l:line  = [l:display, self]
+  call add(a:content, l:line)
+
+  if type(self.children) == g:self#DICTIONARY_TYPE && self.is_open
+    let l:d = a:depth + 1
+   
+    let keys = a:tree.forest.match_case_sort
+          \ ? sort(keys(self.children), "s:MatchCaseSortCompare")
+          \ : sort(keys(self.children), "s:IgnoreCaseSortCompare")
+
+    if a:tree.forest.sort_direction
+      call reverse(keys)
+    endif
+
+    if a:tree.forest.content_order == 'non-leaf-first'
+      " non-leaf: Dictionary or Number == 1
+      for key in keys
+        let child = self.children[key]
+        if type(child.children) == g:self#DICTIONARY_TYPE || child.children == 1
+          call child.draw(a:tree, a:content, l:d)
+        endif
+      endfor
+
+      " leaf: Number == 0
+      for key in keys
+        let child = self.children[key]
+        if type(child.children) == g:self#NUMBER_TYPE && child.children == 0
+          call child.draw(a:tree, a:content, l:d)
+        endif
+      endfor
+      
+    elseif a:tree.forest.content_order == 'non-leaf-only'
+      " non-leaf: Dictionary or Number == 1
+      for key in keys
+        let child = self.children[key]
+        if type(child.children) == g:self#DICTIONARY_TYPE || child.children == 1
+          call child.draw(a:tree, a:content, l:d)
+        endif
+      endfor
+
+    elseif a:tree.forest.content_order == 'leaf-first'
+      " leaf: Number == 0
+      for key in keys
+        let child = self.children[key]
+        if type(child.children) == g:self#NUMBER_TYPE && child.children == 0
+          call child.draw(a:tree, a:content, l:d)
+        endif
+      endfor
+
+      " non-leaf: Dictionary or Number == 1
+      for key in keys
+        let child = self.children[key]
+        if type(child.children) == g:self#DICTIONARY_TYPE || child.children == 1
+          call child.draw(a:tree, a:content, l:d)
+        endif
+      endfor
+
+    else " 'mixed'
+      for key in keys
+        let child = self.children[key]
+        call child.draw(a:tree, a:content, l:d)
+      endfor
+    endif
+
+  endif
+" call forms#log("FORMS_NODE_draw BOTTOM name=". self.name)
+endfunction
+let s:Node.draw = function("FORMS_NODE_draw")
+
+function! forms#CreateNode()
+  return deepcopy(s:Node)
+endfunction
+" ------------------------
+
+"---------------------------------------------------------------------------
+" ForestViewer <- Leaf: {{{2
+"---------------------------------------------------------------------------
+" Hierarhical data viewer
+"
+" attributes
+"   width    : Number: Width of Glyph
+"   height   : Number: Height of Glyph
+"   top_node_full_name  : Number: 1 (default) top node draws full name
+"                           0 top node only gives last path name
+"   match_case_sort   : Number: sort 1 match case (default), 0 ignore case
+"   sort_direction    : Number: sort 0 as sorted (default), 1 reverse sort
+"   content_order     : String: display order of nodes
+"                       'non-leaf-first' (default), 
+"                       'non-leaf-only' for use with slaved NodeViewer
+"                       'mixed' or 
+"                       'leaf-first'
+"   pos      : optional: position of an initially selected item 
+"   on_open_action       : Action called when non-leaf node is opened
+"                           parameters: tree, node
+"                           default: noop action
+"   on_close_action      : Action called when non-leaf node is closed
+"                           parameters: tree, node
+"                           default: noop action
+"   on_selection_action  : Action called when leaf node is selected
+"                           parameters: tree, node
+"                           default: noop action
+"
+"---------------------------------------------------------------------------
+if g:self#IN_DEVELOPMENT_MODE
+  if exists("g:forms#ForestViewer")
+    unlet g:forms#ForestViewer
+  endif
+endif
+function! forms#loadForestViewerPrototype()
+  if !exists("g:forms#ForestViewer")
+    let g:forms#ForestViewer = forms#loadLeafPrototype().clone('forms#ForestViewer')
+    let g:forms#ForestViewer.__forest = {}
+    let g:forms#ForestViewer.__width = 0
+    let g:forms#ForestViewer.__height = 0
+    let g:forms#ForestViewer.__top_node_full_name = 1
+    let g:forms#ForestViewer.__match_case_sort = 0
+    let g:forms#ForestViewer.__sort_direction = 0
+    let g:forms#ForestViewer.__content_order = 'non-leaf-first'
+    let g:forms#ForestViewer.__on_open_action = g:forms_Util.emptyAction()
+    let g:forms#ForestViewer.__on_close_action = g:forms_Util.emptyAction()
+    let g:forms#ForestViewer.__on_selection_action = g:forms_Util.emptyAction()
+    let g:forms#ForestViewer.__pos = 0
+    let g:forms#ForestViewer.__offset = 0
+    let g:forms#ForestViewer.__win_start = 0
+
+    function! FORMS_FOREST_VIEWER_init(attrs) dict
+" call forms#log("g:forms#ForestViewer.init ")
+      call call(g:forms#Leaf.init, [a:attrs], self)
+
+      if self.__content_order != 'non-leaf-first'
+            \ && self.__content_order != 'non-leaf-only'
+            \ && self.__content_order != 'mixed'
+            \ && self.__content_order != 'leaf-first'
+        throw "ForestViewer: bad content_order: ". self.__content_order
+      endif
+      if self.__forest == {}
+        throw "ForestViewer: empty Forest"
+      endif
+      let self.__forest.top_node_full_name = self.__top_node_full_name
+      let self.__forest.match_case_sort = self.__match_case_sort
+      let self.__forest.sort_direction = self.__sort_direction
+      let self.__forest.content_order = self.__content_order
+      " let self.__forest.on_open_action = self.__on_open_action
+      " let self.__forest.on_close_action = self.__on_close_action
+      " let self.__forest.on_selection_action = self.__on_selection_action
+
+      if self.__width <= 0
+        throw "ForestViewer: width must be positive: ". self.__width 
+      endif
+      if self.__height <= 0
+        throw "ForestViewer: height must be positive: ". self.__height 
+      endif
+
+      return self
+    endfunction
+    let g:forms#ForestViewer.init = function("FORMS_FOREST_VIEWER_init")
+
+    function! FORMS_FOREST_VIEWER_reinit(attrs) dict
+" call forms#log("g:forms#ForestViewer.reinit TOP")
+      let oldWidth = self.__width
+      let oldHeight = self.__height
+
+      let self.__forest = {}
+      let self.__pos = 0
+      let self.__offset = 0
+      let self.__width = 0
+      let self.__height = 0
+      let self.__top_node_full_name = 1
+      let self.__match_case_sort = 0
+      let self.__sort_direction = 0
+      let self.__content_order = 'non-leaf-first'
+      let self.__on_open_action = g:forms_Util.emptyAction()
+      let self.__on_close_action = g:forms_Util.emptyAction()
+      let self.__on_selection_action = g:forms_Util.emptyAction()
+      let self.__win_start = 0
+
+      call call(g:forms#Leaf.reinit, [a:attrs], self)
+
+      if oldWidth != self.__width
+        call forms#PrependUniqueInput({'type': 'ReSize'})
+      elseif oldHeight != self.__height
+        call forms#PrependUniqueInput({'type': 'ReSize'})
+      endif
+    endfunction
+    let g:forms#ForestViewer.reinit = function("FORMS_FOREST_VIEWER_reinit")
+
+    function! FORMS_FOREST_VIEWER_canFocus() dict
+      return (self.__status == g:IS_ENABLED)
+    endfunction
+    let g:forms#ForestViewer.canFocus = function("FORMS_FOREST_VIEWER_canFocus")
+
+    function! FORMS_FOREST_VIEWER_hotspot() dict
+" call forms#log("g:forms#ForestViewer.hotspot TOP")
+      if (self.__status == g:IS_ENABLED)
+        let a = self.__allocation
+        let line = a.line
+        let column = a.column
+        let width = a.width
+        let pos = self.__pos
+        let offset = self.__offset
+        let win_start = self.__win_start
+        let content = self.__forest.content
+
+if offset == 0
+        let text = content[pos][0]
+        let tlen = len(text)
+        let cnt = 0
+        while cnt < tlen
+          let c = text[cnt]
+" call forms#log("g:forms#ForestViewer.hotspot cnt=". cnt .", c='". c ."'")
+          if c != ' '
+            if c != '-' && c != '+'
+              let cnt -= 2
+            endif
+            break
+          endif
+            
+          let cnt += 1
+        endwhile
+
+        call HotSpot(line+pos-win_start, column+cnt)
+else
+" call forms#log("g:forms#ForestViewer.hotspot offset=". offset)
+        let text = content[pos][0]
+        let tlen = len(text) - offset
+
+        if tlen <= 0
+          let cnt = 0
+        else
+          let cnt = offset
+          let not_space = 0
+          while cnt < tlen
+            let c = text[cnt]
+" call forms#log("g:forms#ForestViewer.hotspot cnt=". cnt .", c='". c ."'")
+            if c != ' '
+              let not_space = 1
+              break
+            endif
+
+            let cnt += 1
+          endwhile
+
+" call forms#log("g:forms#ForestViewer.hotspot not_space=". not_space)
+          if not_space
+            let c = text[cnt]
+            if c != '-' && c != '+'
+              let cnt -= 2
+            endif
+          else
+            " only space so far
+            while cnt < tlen
+              let c = text[cnt]
+              if c != ' '
+                if c != '-' && c != '+'
+                  let cnt -= 2
+                endif
+                break
+              endif
+            
+              let cnt += 1
+            endwhile
+          endif
+
+          let cnt -= offset
+          if cnt < 0
+            let cnt = 0
+          endif
+
+" call forms#log("g:forms#ForestViewer.hotspot cnt=". cnt)
+
+        endif
+
+
+        call HotSpot(line+pos-win_start, column+cnt)
+endif
+      endif
+    endfunction
+    let g:forms#ForestViewer.hotspot = function("FORMS_FOREST_VIEWER_hotspot")
+
+    function! FORMS_FOREST_VIEWER_flash() dict
+" call forms#log("g:forms#ForestViewer.flash TOP")
+      if (self.__status == g:IS_ENABLED)
+        call FlashRegion(self.__allocation)
+      endif
+    endfunction
+    let g:forms#ForestViewer.flash = function("FORMS_FOREST_VIEWER_flash")
+
+    function! FORMS_FOREST_VIEWER_addResults(results) dict
+" call forms#log("g:forms#ForestViewer.addResults TOP")
+      " TOOD select none/one/multi nodes
+    endfunction
+    let g:forms#ForestViewer.addResults = function("FORMS_FOREST_VIEWER_addResults")
+
+    function! FORMS_FOREST_VIEWER_requestedSize() dict
+" call forms#log("g:forms#ForestViewer.requestedSize TOP")
+      if (self.__status == g:IS_INVISIBLE) 
+        return [0,0]
+      else
+        return [self.__width, self.__height]
+      endif
+    endfunction
+    let g:forms#ForestViewer.requestedSize = function("FORMS_FOREST_VIEWER_requestedSize")
+
+    function! FORMS_FOREST_VIEWER_set_match_case_sort(n) dict
+      let self.__match_case_sort = a:n
+      let self.__forest.match_case_sort = self.__match_case_sort
+      call self.__forest.changed()
+    endfunction
+    let g:forms#ForestViewer.setMatchCaseSort = function("FORMS_FOREST_VIEWER_set_match_case_sort")
+
+    function! FORMS_FOREST_VIEWER_set_sort_direction(n) dict
+      let self.__sort_direction = a:n
+      let self.__forest.match_case_sort = self.__sort_direction
+      call self.__forest.changed()
+    endfunction
+    let g:forms#ForestViewer.setSortDirection = function("FORMS_FOREST_VIEWER_set_sort_direction")
+
+    function! FORMS_FOREST_VIEWER_set_node(tree, node) dict
+" call forms#logforce("g:forms#ForestViewer.setNode TOP")
+      let tree = a:tree
+      let node = a:node
+      " TODO check that tree is member of trees
+
+if 0
+      if tree.current_path == path
+" call forms#logforce("g:forms#ForestViewer.setNode path EQUALS toggle")
+        let node = tree.toggle(path)
+      else
+" call forms#logforce("g:forms#ForestViewer.setNode path NOT EQUALS goto")
+        let node = tree.goto(path)
+      endif
+endif
+
+      let path = node.path
+
+      " find pos of new tree/node
+      let cnt = 0
+      let found = 0
+      let content = self.__forest.draw()
+      for [d, n] in content
+        if n.path == path
+          let found = 1
+          break
+        endif
+        let cnt += 1
+      endfor
+
+      if found
+        let self.__pos = cnt
+        call self.adjustWinStart()
+        call forms#ViewerRedrawListAdd(self)
+      else
+" call forms#logforce("g:forms#ForestViewer.setNode NODE PATH NOT FOUND")
+      endif
+
+" call forms#logforce("g:forms#ForestViewer.setNode BOTTOM")
+    endfunction
+    let g:forms#ForestViewer.setNode = function("FORMS_FOREST_VIEWER_set_node")
+
+    function! FORMS_FOREST_VIEWER_handleEvent(event) dict
+" call forms#log("g:forms#ForestViewer.handleEvent TOP")
+      let handled = 0
+      if (self.__status == g:IS_ENABLED)
+        let type = a:event.type
+        if type == 'Select'
+          let a = self.__allocation
+          let line = a:event.line
+          let diff = line - a.line
+          let pos = self.__win_start + diff
+
+          let content = self.__forest.content
+          if pos < len(content)
+            let self.__pos = pos
+            call self.handleSelection()
+            call forms#ViewerRedrawListAdd(self) 
+          endif
+          let handled = 1
+if 0
+        elseif type == 'SelectDobule'
+          let a = self.__allocation
+          let line = a:event.line
+          let diff = line - a.line
+          let pos = self.__win_start + diff
+          if pos == self.__pos
+            call self.handleSelectionDouble()
+            call forms#ViewerRedrawListAdd(self) 
+          endif
+          let handled = 1
+endif
+        endif
+      endif
+" call forms#log("g:forms#ForestViewer.handleEvent BOTTOM handled=". handled)
+      return handled
+    endfunction
+    let g:forms#ForestViewer.handleEvent = function("FORMS_FOREST_VIEWER_handleEvent")
+
+    function! FORMS_FOREST_VIEWER_handleChar(nr) dict
+" call forms#log("g:forms#ForestViewer.handleChar TOP")
+      let handled = 0
+      if (self.__status == g:IS_ENABLED)
+        let c = nr2char(a:nr)
+" call forms#logforce("g:forms#ForestViewer.handleChar: nr=". a:nr)
+" call forms#logforce("g:forms#ForestViewer.handleChar: c=". c)
+        if a:nr == "\<Up>" || a:nr == "\<ScrollWheelUp>"
+          if self.__pos == 0
+            call self.flash()
+          else
+            let self.__pos -= 1
+           " call forms#ViewerRedrawListAdd(self) 
+          endif
+          let handled = 1
+
+        elseif a:nr == "\<Left>" || a:nr == "\<ScrollWheelLeft>" 
+          if self.__offset == 0
+            call self.flash()
+          else
+            let self.__offset -= 1
+          endif
+          call forms#ViewerRedrawListAdd(self)
+          let handled = 1
+
+        elseif a:nr == "\<S-Left>" || a:nr == "\<S-ScrollWheelLeft>"
+          if self.__offset == 0
+            call self.flash()
+          else
+            let a = self.__allocation
+            let width = a.width
+            let d = width/4
+            let self.__offset -= d
+            if self.__offset < 0
+              let self.__offset = 0
+            endif
+          endif
+          call forms#ViewerRedrawListAdd(self)
+          let handled = 1
+
+        elseif a:nr == "\<C-Left>" || a:nr == "\<C-ScrollWheelLeft>"
+          if self.__offset == 0
+            call self.flash()
+          else
+            let a = self.__allocation
+            let width = a.width
+            let d = width/2
+            let self.__offset -= d
+            if self.__offset < 0
+              let self.__offset = 0
+            endif
+          endif
+          call forms#ViewerRedrawListAdd(self)
+          let handled = 1
+
+        elseif a:nr == "\<Right>" || a:nr == "\<ScrollWheelRight>" 
+          let max_content_len = self.__forest.max_content_len
+          if self.__offset == max_content_len - 1
+            call self.flash()
+          else
+            let self.__offset += 1
+          endif
+          call forms#ViewerRedrawListAdd(self)
+          let handled = 1
+
+        elseif a:nr == "\<S-Right>" || a:nr == "\<S-ScrollWheelRight>"
+          let max_content_len = self.__forest.max_content_len
+          if self.__offset == max_content_len - 1
+            call self.flash()
+          else
+            let a = self.__allocation
+            let width = a.width
+            let d = width/4
+            let self.__offset += d
+            if self.__offset >= max_content_len - 1
+              let self.__offset = max_content_len - 1
+            endif
+          endif
+          call forms#ViewerRedrawListAdd(self)
+          let handled = 1
+
+        elseif a:nr == "\<C-Right>" || a:nr == "\<C-ScrollWheelRight>"
+          let max_content_len = self.__forest.max_content_len
+          if self.__offset == max_content_len - 1
+            call self.flash()
+          else
+            let a = self.__allocation
+            let width = a.width
+            let d = width/2
+            let self.__offset += d
+            if self.__offset >= max_content_len - 1
+              let self.__offset = max_content_len - 1
+            endif
+          endif
+          call forms#ViewerRedrawListAdd(self)
+          let handled = 1
+
+        elseif a:nr == "\<Down>" || a:nr == "\<ScrollWheelDown>"
+          let content = self.__forest.content
+" return [display, node]
+          if self.__pos == len(content) - 1
+            call self.flash()
+          else
+            let self.__pos += 1
+            " call forms#ViewerRedrawListAdd(self) 
+          endif
+          let handled = 1
+
+        elseif a:nr == "\<PageDown>" || 
+            \ a:nr == "\<S-ScrollWheelDown>" ||
+            \ a:nr == "\<C-ScrollWheelDown>"
+          let content = self.__forest.content
+          let nchoices = len(content)
+          if self.__pos == nchoices - 1
+            call self.flash()
+          else
+            let self.__pos += self.__height
+            if self.__pos >= nchoices
+              let self.__pos = nchoices - 1
+            endif
+          endif
+          let handled = 1
+
+        elseif a:nr == "\<PageUp>" ||
+            \ a:nr == "\<S-ScrollWheelUp>" ||
+            \ a:nr == "\<C-ScrollWheelUp>"
+          if self.__pos == 0
+            call self.flash()
+          else
+            let self.__pos -= self.__height
+            if self.__pos < 0
+              let self.__pos = 0
+            endif
+          endif
+          let handled = 1
+
+        elseif c == "\<CR>" || c == "\<Space>"
+" call forms#logforce("g:forms#ForestViewer.handleChar: <CR>")
+          call self.handleSelection() 
+          call forms#ViewerRedrawListAdd(self)
+          let handled = 1
+        endif
+
+        let needs_redraw = self.adjustWinStart()
+        if needs_redraw
+          call forms#ViewerRedrawListAdd(self)
+        endif
+      endif
+
+" call forms#logforce("g:forms#ForestViewer.handleChar: BOTTOM handled=". handled)
+      return handled
+    endfunction
+    let g:forms#ForestViewer.handleChar = function("FORMS_FOREST_VIEWER_handleChar")
+
+    function! FORMS_FOREST_VIEWER_adjustWinStart() dict
+      let needs_redraw = 0
+      let height = self.__height
+      let pos = self.__pos
+
+      if pos >= self.__win_start + height
+        while pos >= self.__win_start + height
+          let self.__win_start += 1
+          let needs_redraw = 1
+        endwhile
+      elseif self.__win_start > 0 && pos < self.__win_start
+        while self.__win_start > 0 && pos < self.__win_start
+          let self.__win_start -= 1
+          let needs_redraw = 1
+        endwhile
+      endif
+
+      return needs_redraw
+    endfunction
+    let g:forms#ForestViewer.adjustWinStart = function("FORMS_FOREST_VIEWER_adjustWinStart")
+
+    function! FORMS_FOREST_VIEWER_handleSelection() dict
+" call forms#logforce("g:forms#ForestViewer.handleSelection TOP")
+      let pos = self.__pos
+      let content = self.__forest.content
+      let trees = self.__forest.trees 
+      let [display, node] = content[pos]
+      let path = node.path
+" call forms#logforce("g:forms#ForestViewer.handleSelection pos=". pos)
+" call forms#logforce("g:forms#ForestViewer.handleSelection display=". display)
+" call forms#logforce("g:forms#ForestViewer.handleSelection path=". string(path))
+
+      " path should include the top path of one of the trees
+      let max_m = -1
+      for key in keys(trees)
+        let t = trees[key]
+        let top_path = t.node.path
+" call forms#logforce("g:forms#ForestViewer.handleSelection top_path=". string(top_path))
+        let m = s:contains(top_path, path)
+        if m != 0 && m > max_m
+          let max_m = m
+          let tree = t
+        endif
+      endfor
+
+      if ! exists("tree")
+        throw "Could not find tree with path: " . string(path)
+      endif
+
+" call forms#logforce("g:forms#ForestViewer.handleSelection tree.current_path=". string(tree.current_path))
+" call forms#logforce("g:forms#ForestViewer.handleSelection path=". string(path))
+
+      if tree.current_path == path
+" call forms#logforce("g:forms#ForestViewer.handleSelection path EQUALS toggle")
+        let node = tree.toggle(path)
+      else
+" call forms#logforce("g:forms#ForestViewer.handleSelection path NOT EQUALS goto")
+        let node = tree.goto(path)
+      endif
+
+      call self.doAction(tree, node)
+
+    endfunction
+    let g:forms#ForestViewer.handleSelection = function("FORMS_FOREST_VIEWER_handleSelection")
+
+    function! FORMS_FOREST_VIEWER_do_action(tree, node) dict
+      let tree = a:tree
+      let node = a:node
+      " XXXXXXXXXXXXXXXXXXXXXXXXX
+      if type(node.children) == g:self#NUMBER_TYPE
+        if node.children
+          " non leaf
+          if node.is_open
+            call self.__on_open_action.execute(tree, node)
+          else
+            call self.__on_close_action.execute(tree, node)
+          endif
+        else
+          " leaf
+          call self.__on_selection_action.execute(tree, node)
+        endif
+      else
+        if node.is_open
+          call self.__on_open_action.execute(tree, node)
+        else
+          call self.__on_close_action.execute(tree, node)
+        endif
+      endif
+    endfunction
+    let g:forms#ForestViewer.doAction = function("FORMS_FOREST_VIEWER_do_action")
+
+    function! FORMS_FOREST_VIEWER_draw(allocation) dict
+" call forms#log("g:forms#ForestViewer.draw TOP")
+      let self.__allocation = a:allocation
+      let a = a:allocation
+
+      if self.__status != g:IS_INVISIBLE
+        let line = a.line
+        let column = a.column
+        let width = a.width
+        let height = a.height
+        let pos = self.__pos
+        let offset = self.__offset
+        let win_start = self.__win_start
+
+        let content = self.__forest.draw()
+        let max_content_len = self.__forest.max_content_len
+        let clen = len(content)
+
+" call forms#log("g:forms#ForestViewer.draw height=". height)
+" call forms#log("g:forms#ForestViewer.draw clen=". clen)
+" call forms#log("g:forms#ForestViewer.draw pos=". pos)
+" call forms#log("g:forms#ForestViewer.draw offset=". offset)
+" call forms#log("g:forms#ForestViewer.draw win_start=". win_start)
+" call forms#log("g:forms#ForestViewer.draw max_content_len=". max_content_len)
+        let xlen = clen-win_start
+" call forms#log("g:forms#ForestViewer.draw xlen=". xlen)
+
+        " let nc = clen >= height ? height : clen
+        let nc = xlen >= height ? height : xlen
+" call forms#log("g:forms#ForestViewer.draw nc=". nc)
+if offset == 0
+        let cnt = 0
+        while cnt < nc
+          let [text, node] = content[cnt+win_start]
+          let tlen = len(text)
+          if tlen == width
+            call forms#SetStringAt(text, line+cnt, column)
+          elseif tlen < width
+            let diff = width - tlen
+            call forms#SetStringAt(text, line+cnt, column)
+            call forms#SetStringAt(repeat(' ', diff), line+cnt, column+tlen)
+          else
+            let text = strpart(text, 0, width)
+            call forms#SetStringAt(text, line+cnt, column)
+          endif
+
+          let cnt += 1
+        endwhile
+" call forms#log("g:forms#ForestViewer.draw cnt=". cnt)
+
+        if height > xlen
+          let ws = repeat(' ', width)
+          while cnt < height
+            call forms#SetStringAt(ws, line+cnt, column)
+            let cnt += 1
+          endwhile
+        endif
+" call forms#log("g:forms#ForestViewer.draw cnt=". cnt)
+
+else
+        let cnt = 0
+        while cnt < nc
+          let [text, node] = content[cnt+win_start]
+          let tlen = len(text) - offset
+          if tlen <= 0
+            call forms#SetStringAt(repeat(' ', width), line+cnt, column)
+          elseif tlen == width
+            let text = strpart(text, offset)
+            call forms#SetStringAt(text, line+cnt, column)
+          elseif tlen < width
+            let diff = width - tlen
+            let text = strpart(text, offset)
+            call forms#SetStringAt(text, line+cnt, column)
+            call forms#SetStringAt(repeat(' ', diff), line+cnt, column+tlen)
+          else
+            let text = strpart(text, offset, width)
+            call forms#SetStringAt(text, line+cnt, column)
+          endif
+
+          let cnt += 1
+        endwhile
+" call forms#log("g:forms#ForestViewer.draw cnt=". cnt)
+
+        if height > xlen
+          let ws = repeat(' ', width)
+          while cnt < height
+            call forms#SetStringAt(ws, line+cnt, column)
+            let cnt += 1
+          endwhile
+        endif
+" call forms#log("g:forms#ForestViewer.draw cnt=". cnt)
+endif
+
+      endif
+      if self.__status == g:IS_DISABLED
+        call AugmentGlyphHilight(self, "DisableFORMS_HL", a)
+      endif                     
+    endfunction
+    let g:forms#ForestViewer.draw = function("FORMS_FOREST_VIEWER_draw")
+
+    function! FORMS_FOREST_VIEWER_usage() dict
+      return [
+           \ "A ForestViewer is a multi-line editor a fixed display",
+           \ "  click."
+           \ ]
+    endfunction
+    let g:forms#ForestViewer.usage = function("FORMS_FOREST_VIEWER_usage")
+
+  endif
+
+  return g:forms#ForestViewer
+endfunction
+function! forms#newForestViewer(attrs)
+  return forms#loadForestViewerPrototype().clone().init(a:attrs)
+endfunction
+
+"---------------------------------------------------------------------------
+" NodeViewer <- Leaf: {{{2
+"---------------------------------------------------------------------------
+" Node data viewer
+"
+" attributes
+"   width    : Number: Width of Glyph
+"   height   : Number: Height of Glyph
+"   top_node_full_name  : Number: 1 (default) top node draws full name
+"                           0 top node only gives last path name
+"   match_case_sort   : Number: sort 1 match case (default), 0 ignore case
+"   sort_direction    : Number: sort 0 as sorted (default), 1 reverse sort
+"   content_order     : String: display order of nodes
+"                       'non-leaf-first' (default), 
+"                       'mixed' or 
+"                       'leaf-first'
+"   pos      : optional: position of an initially selected item 
+"   on_open_action       : Action called when non-leaf node is opened
+"                           parameters: tree, node
+"                           default: noop action
+"   on_close_action      : Action called when non-leaf node is closed
+"                           parameters: tree, node
+"                           default: noop action
+"   on_selection_action  : Action called when leaf node is selected
+"                           parameters: tree, node
+"                           default: noop action
+"
+"---------------------------------------------------------------------------
+if g:self#IN_DEVELOPMENT_MODE
+  if exists("g:forms#NodeViewer")
+    unlet g:forms#NodeViewer
+  endif
+endif
+function! forms#loadNodeViewerPrototype()
+  if !exists("g:forms#NodeViewer")
+    let g:forms#NodeViewer = forms#loadLeafPrototype().clone('forms#NodeViewer')
+    let g:forms#NodeViewer.__tree = {}
+    let g:forms#NodeViewer.__node = {}
+    let g:forms#NodeViewer.__width = 0
+    let g:forms#NodeViewer.__height = 0
+    let g:forms#NodeViewer.__top_node_full_name = 1
+    let g:forms#NodeViewer.__match_case_sort = 0
+    let g:forms#NodeViewer.__sort_direction = 0
+    let g:forms#NodeViewer.__content_order = 'non-leaf-first'
+    let g:forms#NodeViewer.__on_open_action = g:forms_Util.emptyAction()
+    let g:forms#NodeViewer.__on_close_action = g:forms_Util.emptyAction()
+    let g:forms#NodeViewer.__on_selection_action = g:forms_Util.emptyAction()
+    let g:forms#NodeViewer.__pos = 0
+    let g:forms#NodeViewer.__offset = 0
+    let g:forms#NodeViewer.__win_start = 0
+    let g:forms#NodeViewer.__changed = 0
+    let g:forms#NodeViewer.__max_content_len = -1
+    let g:forms#NodeViewer.__content = []
+
+    function! FORMS_NODE_VIEWER_init(attrs) dict
+" call forms#log("g:forms#NodeViewer.init ")
+      call call(g:forms#Leaf.init, [a:attrs], self)
+
+      if self.__content_order != 'non-leaf-first'
+            \ && self.__content_order != 'mixed'
+            \ && self.__content_order != 'leaf-first'
+        throw "NodeViewer: bad content_order: ". self.__content_order
+      endif
+      if self.__tree == {}
+        throw "NodeViewer: empty tree"
+      endif
+      if self.__node == {}
+        throw "NodeViewer: empty node"
+      endif
+      " TOOD make sure node belongs to tree
+
+      if self.__width <= 0
+        throw "NodeViewer: width must be positive: ". self.__width 
+      endif
+      if self.__height <= 0
+        throw "NodeViewer: height must be positive: ". self.__height 
+      endif
+
+      return self
+    endfunction
+    let g:forms#NodeViewer.init = function("FORMS_NODE_VIEWER_init")
+
+    function! FORMS_NODE_VIEWER_reinit(attrs) dict
+" call forms#log("g:forms#NodeViewer.reinit TOP")
+      let oldWidth = self.__width
+      let oldHeight = self.__height
+
+      let self.__tree = {}
+      let self.__node = {}
+      let self.__pos = 0
+      let self.__offset = 0
+      let self.__width = 0
+      let self.__height = 0
+      let self.__top_node_full_name = 1
+      let self.__match_case_sort = 0
+      let self.__sort_direction = 0
+      let self.__content_order = 'non-leaf-first'
+      let self.__on_open_action = g:forms_Util.emptyAction()
+      let self.__on_close_action = g:forms_Util.emptyAction()
+      let self.__on_selection_action = g:forms_Util.emptyAction()
+      let self.__win_start = 0
+      let self.__changed = 0
+      let self.__max_content_len = -1
+
+      call call(g:forms#Leaf.reinit, [a:attrs], self)
+
+      if oldWidth != self.__width
+        call forms#PrependUniqueInput({'type': 'ReSize'})
+      elseif oldHeight != self.__height
+        call forms#PrependUniqueInput({'type': 'ReSize'})
+      endif
+    endfunction
+    let g:forms#NodeViewer.reinit = function("FORMS_NODE_VIEWER_reinit")
+
+    function! FORMS_NODE_VIEWER_canFocus() dict
+      return (self.__status == g:IS_ENABLED)
+    endfunction
+    let g:forms#NodeViewer.canFocus = function("FORMS_NODE_VIEWER_canFocus")
+
+    function! FORMS_NODE_VIEWER_hotspot() dict
+" call forms#log("g:forms#NodeViewer.hotspot TOP")
+      if (self.__status == g:IS_ENABLED)
+        let a = self.__allocation
+        let line = a.line
+        let column = a.column
+        let width = a.width
+        let pos = self.__pos
+        let offset = self.__offset
+        let win_start = self.__win_start
+        let content = self.__content
+" call forms#log("g:forms#NodeViewer.hotspot pos=". pos)
+" call forms#log("g:forms#NodeViewer.hotspot content=". string(content))
+
+if offset == 0
+        let text = content[pos][0]
+        let tlen = len(text)
+        let cnt = 0
+        while cnt < tlen
+          let c = text[cnt]
+" call forms#log("g:forms#NodeViewer.hotspot cnt=". cnt .", c='". c ."'")
+          if c != ' '
+            if c != '-' && c != '+'
+              let cnt -= 2
+            endif
+            break
+          endif
+            
+          let cnt += 1
+        endwhile
+
+        call HotSpot(line+pos-win_start, column+cnt)
+else
+" call forms#log("g:forms#NodeViewer.hotspot offset=". offset)
+        let text = content[pos][0]
+        let tlen = len(text) - offset
+
+        if tlen <= 0
+          let cnt = 0
+        else
+          let cnt = offset
+          let not_space = 0
+          while cnt < tlen
+            let c = text[cnt]
+" call forms#log("g:forms#NodeViewer.hotspot cnt=". cnt .", c='". c ."'")
+            if c != ' '
+              let not_space = 1
+              break
+            endif
+
+            let cnt += 1
+          endwhile
+
+" call forms#log("g:forms#NodeViewer.hotspot not_space=". not_space)
+          if not_space
+            let c = text[cnt]
+            if c != '-' && c != '+'
+              let cnt -= 2
+            endif
+          else
+            " only space so far
+            while cnt < tlen
+              let c = text[cnt]
+              if c != ' '
+                if c != '-' && c != '+'
+                  let cnt -= 2
+                endif
+                break
+              endif
+            
+              let cnt += 1
+            endwhile
+          endif
+
+          let cnt -= offset
+          if cnt < 0
+            let cnt = 0
+          endif
+
+" call forms#log("g:forms#NodeViewer.hotspot cnt=". cnt)
+
+        endif
+
+
+        call HotSpot(line+pos-win_start, column+cnt)
+endif
+      endif
+    endfunction
+    let g:forms#NodeViewer.hotspot = function("FORMS_NODE_VIEWER_hotspot")
+
+    function! FORMS_NODE_VIEWER_flash() dict
+" call forms#log("g:forms#NodeViewer.flash TOP")
+      if (self.__status == g:IS_ENABLED)
+        call FlashRegion(self.__allocation)
+      endif
+    endfunction
+    let g:forms#NodeViewer.flash = function("FORMS_NODE_VIEWER_flash")
+
+    function! FORMS_NODE_VIEWER_addResults(results) dict
+" call forms#log("g:forms#NodeViewer.addResults TOP")
+      " TOOD select none/one/multi nodes
+    endfunction
+    let g:forms#NodeViewer.addResults = function("FORMS_NODE_VIEWER_addResults")
+
+    function! FORMS_NODE_VIEWER_requestedSize() dict
+" call forms#log("g:forms#NodeViewer.requestedSize TOP")
+      if (self.__status == g:IS_INVISIBLE) 
+        return [0,0]
+      else
+        return [self.__width, self.__height]
+      endif
+    endfunction
+    let g:forms#NodeViewer.requestedSize = function("FORMS_NODE_VIEWER_requestedSize")
+
+    function! FORMS_NODE_VIEWER_set_match_case_sort(n) dict
+      let self.__match_case_sort = a:n
+      let self.__changed = 1
+    endfunction
+    let g:forms#NodeViewer.setMatchCaseSort = function("FORMS_NODE_VIEWER_set_match_case_sort")
+
+    function! FORMS_NODE_VIEWER_set_node(tree, node, is_slave) dict
+" call forms#log("g:forms#NodeViewer.set_node TOP")
+      let self.__tree = a:tree
+      let self.__node = a:node
+" call forms#log("g:forms#NodeViewer.set_node path=". string(a:node.path))
+
+      let self.__tree.current_path = a:node.path
+      let self.__pos = 0
+      let self.__changed = 1
+
+      if ! a:is_slave
+        call a:tree.toggle(a:node.path)
+        call a:node.update(a:tree)
+      endif
+
+      call forms#ViewerRedrawListAdd(self) 
+
+" call forms#log("g:forms#NodeViewer.set_node BOTTOM")
+    endfunction
+    let g:forms#NodeViewer.setNode = function("FORMS_NODE_VIEWER_set_node")
+
+    function! FORMS_NODE_VIEWER_set_sort_direction(n) dict
+      let self.__sort_direction = a:n
+      let self.__changed = 1
+    endfunction
+    let g:forms#NodeViewer.setSortDirection = function("FORMS_NODE_VIEWER_set_sort_direction")
+
+    function! FORMS_NODE_VIEWER_handleEvent(event) dict
+" call forms#log("g:forms#NodeViewer.handleEvent TOP")
+      let handled = 0
+      if (self.__status == g:IS_ENABLED)
+        let type = a:event.type
+        if type == 'Select'
+          let a = self.__allocation
+          let content = self.__content
+          let line = a:event.line
+          let diff = line - a.line
+          let pos = self.__win_start + diff
+          if pos < len(content)
+            let self.__pos = pos
+            call self.handleSelection()
+            call forms#ViewerRedrawListAdd(self) 
+          endif
+          let handled = 1
+if 0
+        elseif type == 'SelectDobule'
+          let a = self.__allocation
+          let line = a:event.line
+          let diff = line - a.line
+          let pos = self.__win_start + diff
+          if pos == self.__pos
+            call self.handleSelectionDouble()
+            call forms#ViewerRedrawListAdd(self) 
+          endif
+          let handled = 1
+endif
+        endif
+      endif
+" call forms#log("g:forms#NodeViewer.handleEvent BOTTOM")
+      return handled
+    endfunction
+    let g:forms#NodeViewer.handleEvent = function("FORMS_NODE_VIEWER_handleEvent")
+
+    function! FORMS_NODE_VIEWER_handleChar(nr) dict
+" call forms#log("g:forms#NodeViewer.handleChar TOP")
+      let handled = 0
+      if (self.__status == g:IS_ENABLED)
+        let c = nr2char(a:nr)
+" call forms#logforce("g:forms#NodeViewer.handleChar: nr=". a:nr)
+" call forms#logforce("g:forms#NodeViewer.handleChar: c=". c)
+        if a:nr == "\<Up>" || a:nr == "\<ScrollWheelUp>"
+          if self.__pos == 0
+            call self.flash()
+          else
+            let self.__pos -= 1
+           " call forms#ViewerRedrawListAdd(self) 
+          endif
+          let handled = 1
+
+        elseif a:nr == "\<Left>" || a:nr == "\<ScrollWheelLeft>" 
+          if self.__offset == 0
+            call self.flash()
+          else
+            let self.__offset -= 1
+          endif
+          call forms#ViewerRedrawListAdd(self)
+          let handled = 1
+
+        elseif a:nr == "\<S-Left>" || a:nr == "\<S-ScrollWheelLeft>"
+          if self.__offset == 0
+            call self.flash()
+          else
+            let a = self.__allocation
+            let width = a.width
+            let d = width/4
+            let self.__offset -= d
+            if self.__offset < 0
+              let self.__offset = 0
+            endif
+          endif
+          call forms#ViewerRedrawListAdd(self)
+          let handled = 1
+
+        elseif a:nr == "\<C-Left>" || a:nr == "\<C-ScrollWheelLeft>"
+          if self.__offset == 0
+            call self.flash()
+          else
+            let a = self.__allocation
+            let width = a.width
+            let d = width/2
+            let self.__offset -= d
+            if self.__offset < 0
+              let self.__offset = 0
+            endif
+          endif
+          call forms#ViewerRedrawListAdd(self)
+          let handled = 1
+
+        elseif a:nr == "\<Right>" || a:nr == "\<ScrollWheelRight>" 
+          let max_content_len = self.__max_content_len
+          if self.__offset == max_content_len - 1
+            call self.flash()
+          else
+            let self.__offset += 1
+          endif
+          call forms#ViewerRedrawListAdd(self)
+          let handled = 1
+
+        elseif a:nr == "\<S-Right>" || a:nr == "\<S-ScrollWheelRight>"
+          let max_content_len = self.__max_content_len
+          if self.__offset == max_content_len - 1
+            call self.flash()
+          else
+            let a = self.__allocation
+            let width = a.width
+            let d = width/4
+            let self.__offset += d
+            if self.__offset >= max_content_len - 1
+              let self.__offset = max_content_len - 1
+            endif
+          endif
+          call forms#ViewerRedrawListAdd(self)
+          let handled = 1
+
+        elseif a:nr == "\<C-Right>" || a:nr == "\<C-ScrollWheelRight>"
+          let max_content_len = self.__max_content_len
+          if self.__offset == max_content_len - 1
+            call self.flash()
+          else
+            let a = self.__allocation
+            let width = a.width
+            let d = width/2
+            let self.__offset += d
+            if self.__offset >= max_content_len - 1
+              let self.__offset = max_content_len - 1
+            endif
+          endif
+          call forms#ViewerRedrawListAdd(self)
+          let handled = 1
+
+        elseif a:nr == "\<Down>" || a:nr == "\<ScrollWheelDown>"
+          let content = self.__content
+" return [display, node]
+          if self.__pos == len(content) - 1
+            call self.flash()
+          else
+            let self.__pos += 1
+            " call forms#ViewerRedrawListAdd(self) 
+          endif
+          let handled = 1
+
+        elseif a:nr == "\<PageDown>" || 
+            \ a:nr == "\<S-ScrollWheelDown>" ||
+            \ a:nr == "\<C-ScrollWheelDown>"
+          let content = self.__content
+          let nchoices = len(content)
+          if self.__pos == nchoices - 1
+            call self.flash()
+          else
+            let self.__pos += self.__height
+            if self.__pos >= nchoices
+              let self.__pos = nchoices - 1
+            endif
+          endif
+          let handled = 1
+
+        elseif a:nr == "\<PageUp>" ||
+            \ a:nr == "\<S-ScrollWheelUp>" ||
+            \ a:nr == "\<C-ScrollWheelUp>"
+          if self.__pos == 0
+            call self.flash()
+          else
+            let self.__pos -= self.__height
+            if self.__pos < 0
+              let self.__pos = 0
+            endif
+          endif
+          let handled = 1
+
+        elseif c == "\<CR>" || c == "\<Space>"
+" call forms#logforce("g:forms#NodeViewer.handleChar: <CR>")
+          call self.handleSelection() 
+          call forms#ViewerRedrawListAdd(self)
+          let handled = 1
+
+        elseif a:nr == "\<Del>" || a:nr == "\<BS>"
+" call forms#logforce("g:forms#NodeViewer.handleChar: <BS>")
+          let tree = self.__tree
+          let node = self.__node
+" call forms#logforce("g:forms#NodeViewer.handleChar: node.path=". string(node.path))
+          let tplen = len(tree.node.path)
+          let nplen = len(node.path)
+          if nplen > tplen
+            let parent_path = node.path[ : (nplen-2)]
+" call forms#logforce("g:forms#NodeViewer.handleChar: parent_path=". string(parent_path))
+            if parent_path == tree.node.path
+" call forms#logforce("g:forms#NodeViewer.handleChar: goto top")
+              call self.setNode(tree, tree.node, 0)
+              let node = tree.node
+              " call forms#ViewerRedrawListAdd(self) 
+            else
+              let [found, parent_node] = tree.lookupChild(parent_path)
+" call forms#logforce("g:forms#NodeViewer.handleChar: lookupChild found=". found)
+              if found
+" call forms#logforce("g:forms#NodeViewer.handleChar: parent_node.path=". string(parent_node.path))
+                call self.setNode(tree, parent_node, 0)
+                let node = tree.toggle(parent_path)
+                " call forms#ViewerRedrawListAdd(self) 
+              else
+                call forms#log(parent_node)
+              endif
+            endif
+          endif
+
+          call self.doAction(tree, node)
+
+          let handled = 1
+
+        endif
+
+        let needs_redraw = self.adjustWinStart()
+        if needs_redraw
+          call forms#ViewerRedrawListAdd(self)
+        endif
+      endif
+
+" call forms#logforce("g:forms#NodeViewer.handleChar: BOTTOM handled=". handled)
+      return handled
+    endfunction
+    let g:forms#NodeViewer.handleChar = function("FORMS_NODE_VIEWER_handleChar")
+
+    function! FORMS_NODE_VIEWER_adjustWinStart() dict
+      let needs_redraw = 0
+      let height = self.__height
+      let pos = self.__pos
+
+      if pos >= self.__win_start + height
+        while pos >= self.__win_start + height
+          let self.__win_start += 1
+          let needs_redraw = 1
+        endwhile
+      elseif self.__win_start > 0 && pos < self.__win_start
+        while self.__win_start > 0 && pos < self.__win_start
+          let self.__win_start -= 1
+          let needs_redraw = 1
+        endwhile
+      endif
+
+      return needs_redraw
+    endfunction
+    let g:forms#NodeViewer.adjustWinStart = function("FORMS_NODE_VIEWER_adjustWinStart")
+
+    function! FORMS_NODE_VIEWER_handleSelection() dict
+" call forms#logforce("g:forms#NodeViewer.handleSelection TOP")
+      let pos = self.__pos
+      let content = self.__content
+      let tree = self.__tree
+      let [display, node] = content[pos]
+      let path = node.path
+" call forms#logforce("g:forms#NodeViewer.handleSelection pos=". pos)
+" call forms#logforce("g:forms#NodeViewer.handleSelection display=". display)
+" call forms#logforce("g:forms#NodeViewer.handleSelection path=". string(path))
+" call forms#logforce("g:forms#NodeViewer.handleSelection tree.current_path=". string(tree.current_path))
+
+      if tree.current_path == path
+" call forms#logforce("g:forms#NodeViewer.handleSelection path EQUALS toggle")
+        call tree.toggle(path)
+      else
+" call forms#logforce("g:forms#NodeViewer.handleSelection path NOT EQUALS setNode")
+        " call tree.goto(path)
+        call self.setNode(tree, node, 0)
+      endif
+
+      call self.doAction(tree, node)
+
+    endfunction
+    let g:forms#NodeViewer.handleSelection = function("FORMS_NODE_VIEWER_handleSelection")
+
+    function! FORMS_NODE_VIEWER_do_action(tree, node) dict
+      " XXXXXXXXXXXXXXXXXXXXXXXXX
+      let tree = a:tree
+      let node = a:node
+      if type(node.children) == g:self#NUMBER_TYPE
+        if node.children
+          " non leaf
+          if node.is_open
+            call self.__on_open_action.execute(tree, node)
+          else
+            call self.__on_close_action.execute(tree, node)
+          endif
+        else
+          " leaf
+          call self.__on_selection_action.execute(tree, node)
+        endif
+      else
+        if node.is_open
+          call self.__on_open_action.execute(tree, node)
+        else
+          call self.__on_close_action.execute(tree, node)
+        endif
+      endif
+    endfunction
+    let g:forms#NodeViewer.doAction = function("FORMS_NODE_VIEWER_do_action")
+
+    function! FORMS_NODE_VIEWER_draw(allocation) dict
+" call forms#log("g:forms#NodeViewer.draw TOP")
+      let self.__allocation = a:allocation
+      let a = a:allocation
+
+      if self.__status != g:IS_INVISIBLE
+        let line = a.line
+        let column = a.column
+        let width = a.width
+        let height = a.height
+        let pos = self.__pos
+        let offset = self.__offset
+        let win_start = self.__win_start
+
+        let content = self.drawNode(self.__node, 1)
+        let max_content_len = self.__max_content_len
+        let clen = len(content)
+
+" call forms#log("g:forms#NodeViewer.draw height=". height)
+" call forms#log("g:forms#NodeViewer.draw clen=". clen)
+" call forms#log("g:forms#NodeViewer.draw pos=". pos)
+" call forms#log("g:forms#NodeViewer.draw offset=". offset)
+" call forms#log("g:forms#NodeViewer.draw win_start=". win_start)
+" call forms#log("g:forms#NodeViewer.draw max_content_len=". max_content_len)
+        let xlen = clen-win_start
+" call forms#log("g:forms#NodeViewer.draw xlen=". xlen)
+
+        " let nc = clen >= height ? height : clen
+        let nc = xlen >= height ? height : xlen
+" call forms#log("g:forms#NodeViewer.draw nc=". nc)
+if offset == 0
+        let cnt = 0
+        while cnt < nc
+          let [text, node] = content[cnt+win_start]
+          let tlen = len(text)
+          if tlen == width
+            call forms#SetStringAt(text, line+cnt, column)
+          elseif tlen < width
+            let diff = width - tlen
+            call forms#SetStringAt(text, line+cnt, column)
+            call forms#SetStringAt(repeat(' ', diff), line+cnt, column+tlen)
+          else
+            let text = strpart(text, 0, width)
+            call forms#SetStringAt(text, line+cnt, column)
+          endif
+
+          let cnt += 1
+        endwhile
+" call forms#log("g:forms#NodeViewer.draw cnt=". cnt)
+
+        if height > xlen
+          let ws = repeat(' ', width)
+          while cnt < height
+            call forms#SetStringAt(ws, line+cnt, column)
+            let cnt += 1
+          endwhile
+        endif
+" call forms#log("g:forms#NodeViewer.draw cnt=". cnt)
+
+else
+        let cnt = 0
+        while cnt < nc
+          let [text, node] = content[cnt+win_start]
+          let tlen = len(text) - offset
+          if tlen <= 0
+            call forms#SetStringAt(repeat(' ', width), line+cnt, column)
+          elseif tlen == width
+            let text = strpart(text, offset)
+            call forms#SetStringAt(text, line+cnt, column)
+          elseif tlen < width
+            let diff = width - tlen
+            let text = strpart(text, offset)
+            call forms#SetStringAt(text, line+cnt, column)
+            call forms#SetStringAt(repeat(' ', diff), line+cnt, column+tlen)
+          else
+            let text = strpart(text, offset, width)
+            call forms#SetStringAt(text, line+cnt, column)
+          endif
+
+          let cnt += 1
+        endwhile
+" call forms#log("g:forms#NodeViewer.draw cnt=". cnt)
+
+        if height > xlen
+          let ws = repeat(' ', width)
+          while cnt < height
+            call forms#SetStringAt(ws, line+cnt, column)
+            let cnt += 1
+          endwhile
+        endif
+" call forms#log("g:forms#NodeViewer.draw cnt=". cnt)
+endif
+
+        let self.__content = content
+      endif
+      if self.__status == g:IS_DISABLED
+        call AugmentGlyphHilight(self, "DisableFORMS_HL", a)
+      endif                     
+    endfunction
+    let g:forms#NodeViewer.draw = function("FORMS_NODE_VIEWER_draw")
+
+    function! FORMS_NODE_VIEWER_drawNode(node, toplevel) dict
+"call forms#log("FORMS_NODE_VIEWER_drawNode TOP")
+      let content = []
+      let tree = self.__tree
+      let node = a:node
+"call forms#log("FORMS_NODE_VIEWER_drawNode name=". node.name)
+      let children = node.children
+"call forms#log("FORMS_NODE_VIEWER_drawNode children=". string(children))
+
+      let l:display = a:toplevel ? '' : '  '
+
+      if type(children) == g:self#NUMBER_TYPE
+        if children
+          " non leaf
+          let l:display .= '+ '
+        else
+          " leaf
+          let l:display .= '  '
+        endif
+      else
+        if node.is_open
+          let l:display .= '- '
+        else
+          let l:display .= '+ '
+        endif
+      endif
+
+      if self.__top_node_full_name
+        let l:display .= tree.forest.pathToString(node.path)
+      else
+        let l:display .= node.name
+      endif
+
+"call forms#log("FORMS_NODE_VIEWER_drawNode display='". l:display ."'")
+      let dlen = len(l:display)
+"call forms#log("FORMS_NODE_VIEWER_drawNode dlen=". dlen)
+      if a:toplevel
+        let self.__max_content_len = dlen
+      endif
+
+"call forms#log("FORMS_NODE_VIEWER_drawNode max_content_len=". self.__max_content_len)
+      let l:line  = [l:display, node]
+      call add(content, l:line)
+
+      if a:toplevel
+        if type(children) == g:self#NUMBER_TYPE 
+          if children
+            call node.update(tree)
+          endif
+        endif
+
+        if type(children) == g:self#DICTIONARY_TYPE && node.is_open
+         
+          let keys = self.__match_case_sort
+                \ ? sort(keys(children), "s:MatchCaseSortCompare")
+                \ : sort(keys(children), "s:IgnoreCaseSortCompare")
+
+          if self.__sort_direction
+            call reverse(keys)
+          endif
+
+          if self.__content_order == 'non-leaf-first'
+            " non-leaf: Dictionary or Number == 1
+            for key in keys
+              let child = children[key]
+              if type(child.children) == g:self#DICTIONARY_TYPE || child.children == 1
+                let c = self.drawNode(child, 0)
+                call extend(content, c)
+              endif
+            endfor
+
+            " leaf: Number == 0
+            for key in keys
+              let child = children[key]
+              if type(child.children) == g:self#NUMBER_TYPE && child.children == 0
+                let c = self.drawNode(child, 0)
+                call extend(content, c)
+              endif
+            endfor
+
+          elseif a:tree.forest.content_order == 'leaf-first'
+            " leaf: Number == 0
+            for key in keys
+              let child = children[key]
+              if type(child.children) == g:self#NUMBER_TYPE && child.children == 0
+                let c = self.drawNode(child, 0)
+                call extend(content, c)
+              endif
+            endfor
+
+            " non-leaf: Dictionary or Number == 1
+            for key in keys
+              let child = children[key]
+              if type(child.children) == g:self#DICTIONARY_TYPE || child.children == 1
+                let c = self.drawNode(child, 0)
+                call extend(content, c)
+              endif
+            endfor
+
+          else " 'mixed'
+            for key in keys
+              let child = children[key]
+              let c = self.drawNode(child, 0)
+              call extend(content, c)
+            endfor
+          endif
+
+        endif
+      endif
+
+"call forms#log("FORMS_NODE_VIEWER_drawNode BOTTOM name=". node.name)
+      return content
+    endfunction
+    let g:forms#NodeViewer.drawNode = function("FORMS_NODE_VIEWER_drawNode")
+
+    function! FORMS_NODE_VIEWER_usage() dict
+      return [
+           \ "A NodeViewer is a multi-line editor a fixed display",
+           \ "  click."
+           \ ]
+    endfunction
+    let g:forms#NodeViewer.usage = function("FORMS_NODE_VIEWER_usage")
+
+  endif
+
+  return g:forms#NodeViewer
+endfunction
+function! forms#newNodeViewer(attrs)
+  return forms#loadNodeViewerPrototype().clone().init(a:attrs)
 endfunction
 
 "---------------------------------------------------------------------------
@@ -6515,7 +8574,7 @@ function! forms#loadHSliderPrototype()
         let resolution = self.__resolution
 
         if &encoding == 'utf-8'
-          let full = b:forms_FullB
+          let full = g:forms_FullB
         else
           let full = 'X'
         endif
@@ -6566,8 +8625,8 @@ function! forms#loadHSliderPrototype()
             if pp > 0
               call forms#SetHCharsAt(' ', (pp), line, column)
             endif
-            let righthalf = b:forms_RightHalfB
-            let lefthalf = b:forms_LeftHalfB
+            let righthalf = g:forms_RightHalfB
+            let lefthalf = g:forms_LeftHalfB
             call forms#SetCharAt(righthalf, line, column+pp)
             call forms#SetCharAt(lefthalf, line, column+pp+1)
             if size-pp-2 > 0
@@ -6617,16 +8676,16 @@ function! forms#loadHSliderPrototype()
             else
               if i == 1
 " call forms#log("g:forms#HSlider.draw 1/4")
-                " let b:forms_LeftOneQuarterB = '▎'
-                let chr = b:forms_LeftOneQuarterB
+                " let g:forms_LeftOneQuarterB = '▎'
+                let chr = g:forms_LeftOneQuarterB
               elseif i == 2
 " call forms#log("g:forms#HSlider.draw 1/2")
-                " let b:forms_LeftHalfB  = '▌'
-                let chr = b:forms_LeftHalfB
+                " let g:forms_LeftHalfB  = '▌'
+                let chr = g:forms_LeftHalfB
               elseif i == 3
 " call forms#log("g:forms#HSlider.draw 3/4")
-                " let b:forms_LeftThreeQuartersB = '▊'
-                let chr = b:forms_LeftThreeQuartersB
+                " let g:forms_LeftThreeQuartersB = '▊'
+                let chr = g:forms_LeftThreeQuartersB
               else
                 throw "HSlider.draw bad inter-character index: " . i
               endif
@@ -6689,32 +8748,32 @@ function! forms#loadHSliderPrototype()
             else
               if i == 1
 " call forms#log("g:forms#HSlider.draw 1/8")
-                " let b:forms_LeftOneEighthsB = '▏'
-                let chr = b:forms_LeftOneEighthsB
+                " let g:forms_LeftOneEighthsB = '▏'
+                let chr = g:forms_LeftOneEighthsB
               elseif i == 2
 " call forms#log("g:forms#HSlider.draw 1/4")
-                " let b:forms_LeftOneQuarterB = '▎'
-                let chr = b:forms_LeftOneQuarterB
+                " let g:forms_LeftOneQuarterB = '▎'
+                let chr = g:forms_LeftOneQuarterB
               elseif i == 3
 " call forms#log("g:forms#HSlider.draw 1/2")
-                " let b:forms_LeftThreeEighthsB = '▍'
-                let chr = b:forms_LeftThreeEighthsB
+                " let g:forms_LeftThreeEighthsB = '▍'
+                let chr = g:forms_LeftThreeEighthsB
               elseif i == 4
 " call forms#log("g:forms#HSlider.draw 1/2")
-                " let b:forms_LeftHalfB  = '▌'
-                let chr = b:forms_LeftHalfB
+                " let g:forms_LeftHalfB  = '▌'
+                let chr = g:forms_LeftHalfB
               elseif i == 5
 " call forms#log("g:forms#HSlider.draw 5/8")
-                " let b:forms_leftFiveEighthsB = '▋'
-                let chr = b:forms_leftFiveEighthsB
+                " let g:forms_leftFiveEighthsB = '▋'
+                let chr = g:forms_leftFiveEighthsB
               elseif i == 6
 " call forms#log("g:forms#HSlider.draw 3/4")
-                " let b:forms_LeftThreeQuartersB = '▊'
-                let chr = b:forms_LeftThreeQuartersB
+                " let g:forms_LeftThreeQuartersB = '▊'
+                let chr = g:forms_LeftThreeQuartersB
               elseif i == 7
 " call forms#log("g:forms#HSlider.draw 7/8")
-                " let b:forms_LeftSevenEighthsB = '▉'
-                let chr = b:forms_LeftSevenEighthsB
+                " let g:forms_LeftSevenEighthsB = '▉'
+                let chr = g:forms_LeftSevenEighthsB
               else
                 throw "HSlider.draw bad inter-character index: " . i
               endif
@@ -6853,7 +8912,7 @@ function! forms#loadVSliderPrototype()
         let resolution = self.__resolution
 
         if &encoding == 'utf-8'
-          let full = b:forms_FullB
+          let full = g:forms_FullB
         else
           let full = 'X'
         endif
@@ -6912,8 +8971,8 @@ function! forms#loadVSliderPrototype()
             if pp > 0
               call forms#SetVCharsAt(' ', (pp), line, column)
             endif
-            let lowerhalf = b:forms_LowerHalfB
-            let upperhalf = b:forms_UpperHalfB
+            let lowerhalf = g:forms_LowerHalfB
+            let upperhalf = g:forms_UpperHalfB
             call forms#SetCharAt(lowerhalf, line+pp, column)
             call forms#SetCharAt(upperhalf, line+pp+1, column)
             if size-pp-2 > 0
@@ -6963,16 +9022,16 @@ function! forms#loadVSliderPrototype()
             else
               if i == 1
 " call forms#log("g:forms#VSlider.draw 1/4")
-                " let b:forms_LowerThreeQuartersB = '▆'
-                let chr = b:forms_LowerThreeQuartersB
+                " let g:forms_LowerThreeQuartersB = '▆'
+                let chr = g:forms_LowerThreeQuartersB
               elseif i == 2
 " call forms#log("g:forms#VSlider.draw 1/2")
-                " let b:forms_LowerHalfB = '▄'
-                let chr = b:forms_LowerHalfB
+                " let g:forms_LowerHalfB = '▄'
+                let chr = g:forms_LowerHalfB
               elseif i == 3
 " call forms#log("g:forms#VSlider.draw 3/4")
-                " let b:forms_LowerOneQuarterB = '▂'
-                let chr = b:forms_LowerOneQuarterB
+                " let g:forms_LowerOneQuarterB = '▂'
+                let chr = g:forms_LowerOneQuarterB
               else
                 throw "VSlider.draw bad inter-character index: " . i
               endif
@@ -7035,32 +9094,32 @@ function! forms#loadVSliderPrototype()
             else
               if i == 1
 " call forms#log("g:forms#VSlider.draw 1/8")
-                " let b:forms_LowerSevenEighthsB = '▇'
-                let chr = b:forms_LowerSevenEighthsB
+                " let g:forms_LowerSevenEighthsB = '▇'
+                let chr = g:forms_LowerSevenEighthsB
               elseif i == 2
 " call forms#log("g:forms#VSlider.draw 1/4")
-                " let b:forms_LowerThreeQuartersB = '▆'
-                let chr = b:forms_LowerThreeQuartersB
+                " let g:forms_LowerThreeQuartersB = '▆'
+                let chr = g:forms_LowerThreeQuartersB
               elseif i == 3
 " call forms#log("g:forms#VSlider.draw 1/2")
-                " let b:forms_LowerFiveEighthsB = '▅'
-                let chr = b:forms_LowerFiveEighthsB
+                " let g:forms_LowerFiveEighthsB = '▅'
+                let chr = g:forms_LowerFiveEighthsB
               elseif i == 4
 " call forms#log("g:forms#VSlider.draw 1/2")
-                " let b:forms_LowerHalfB = '▄'
-                let chr = b:forms_LowerHalfB
+                " let g:forms_LowerHalfB = '▄'
+                let chr = g:forms_LowerHalfB
               elseif i == 5
 " call forms#log("g:forms#VSlider.draw 5/8")
-                " let b:forms_LowerThreeEighthsB = '▃'
-                let chr = b:forms_LowerThreeEighthsB
+                " let g:forms_LowerThreeEighthsB = '▃'
+                let chr = g:forms_LowerThreeEighthsB
               elseif i == 6
 " call forms#log("g:forms#VSlider.draw 3/4")
-                " let b:forms_LowerOneQuarterB = '▂'
-                let chr = b:forms_LowerOneQuarterB
+                " let g:forms_LowerOneQuarterB = '▂'
+                let chr = g:forms_LowerOneQuarterB
               elseif i == 7
 " call forms#log("g:forms#VSlider.draw 7/8")
-                " let b:forms_LowerOneEighthB = '▁'
-                let chr = b:forms_LowerOneEighthB
+                " let g:forms_LowerOneEighthB = '▁'
+                let chr = g:forms_LowerOneEighthB
               else
                 throw "VSlider.draw bad inter-character index: " . i
               endif
@@ -7172,6 +9231,16 @@ function! forms#loadMonoPrototype()
       call self.__body.hide()
     endfunction
     let g:forms#Mono.hide  = function("FORMS_MONO_hide")
+
+" XXXXXXXXXXXXXXXXX
+    function! FORMS_MONO_generateFocusList(flist) dict
+      if self.canFocus() 
+        call add(a:flist, self) 
+      else
+        call self.__body.generateFocusList(a:flist)
+      endif
+    endfunction
+    let g:forms#Mono.generateFocusList = function("FORMS_MONO_generateFocusList")
 
     "-----------------------------------------------
     " mono methods
@@ -9474,17 +11543,18 @@ endfunction
 "   And, lines that wrap, are truncated.
 "
 " attributes:
-"    delete     : Should form be deleted on exit. Default true (1).
-"    x_screen   : Place form a x (column) screen (window) position.
-"                   Takes precedence over halignment value.
-"    y_screen   : Place form a y (line) screen (window) position.
-"                   Takes precedence over valignment value.
-"    halignment : Horizontally align form in window.
-"                   float align 0-1 or 'L' 'C' 'R' (default 'L')
-"                   default is 'C'
-"    valignment : Vertically align form in window.
-"                   float align 0-1 or 'T' 'C' 'B' (default 'T')
-"                   default is 'C'
+"    delete      : Should form be deleted on exit. Default true (1).
+"    open_in_tab : Open Form in tab Default false (0).
+"    x_screen    : Place form a x (column) screen (window) position.
+"                    Takes precedence over halignment value.
+"    y_screen    : Place form a y (line) screen (window) position.
+"                    Takes precedence over valignment value.
+"    halignment  : Horizontally align form in window.
+"                    float align 0-1 or 'L' 'C' 'R' (default 'L')
+"                    default is 'C'
+"    valignment  : Vertically align form in window.
+"                    float align 0-1 or 'T' 'C' 'B' (default 'T')
+"                    default is 'C'
 "---------------------------------------------------------------------------
 
 let s:form_save_readonly=&readonly
@@ -9502,7 +11572,7 @@ if exists("s:form_winline")
   unlet s:form_winline
 endif
 
-let s:handling_form_too_big_info = g:self#IS_FALSE
+let s:handling_form_too_big_info = 0
 
 if g:self#IN_DEVELOPMENT_MODE
   if exists("g:forms#Form")
@@ -9513,6 +11583,7 @@ function! forms#loadFormPrototype()
   if !exists("g:forms#Form")
     let g:forms#Form = forms#loadViewerPrototype().clone('forms#Form')
     let g:forms#Form.__delete = 1
+    let g:forms#Form.__open_in_tab = 0
     let g:forms#Form.__x_screen = -1
     let g:forms#Form.__y_screen = -1
     let g:forms#Form.__halignment = 'C'
@@ -9536,6 +11607,7 @@ function! forms#loadFormPrototype()
       let oldVAlignment = self.__valignment
 
       let self.__delete = 1
+      let self.__open_in_tab = 0
       let self.__x_screen = -1
       let self.__y_screen = -1
       let self.__halignment = 'C'
@@ -9564,6 +11636,10 @@ function! forms#loadFormPrototype()
 "call forms#log("g:forms#Form.run TOP")
 
       call g:ShouldLoadeHighlights()
+
+      if self.__open_in_tab
+        tabe
+      endif
 
       "==============================================
       " Capture environment
@@ -9602,7 +11678,7 @@ function! forms#loadFormPrototype()
         " that supports box-drawing and block uft-8 characters
         if has("gui_running")
           let l:save_gui_font = &guifont
-          let &guifont = g:forms_gui_font
+          " let &guifont = g:forms_gui_font
         endif
 
 " let save_cursor = getpos(".")
@@ -9669,10 +11745,10 @@ endif
 
       try
 
-        let run_viewer = g:self#IS_TRUE
+        let run_viewer = 1
 
-        while run_viewer == g:self#IS_TRUE
-          let run_viewer = g:self#IS_FALSE
+        while run_viewer == 1
+          let run_viewer = 0
 
           "==============================================
           " Get Allocation and Capture Screen 
@@ -9685,7 +11761,7 @@ endif
 "call forms#log("g:forms#Form formHeight=" . formHeight)
 
           " Can the form fit in the window
-          let y_success = g:self#IS_TRUE
+          let y_success = 1
           if self.__y_screen >= 0
             if l:winHeigth < formHeight + self.__y_screen
               let ydelta = formHeight + self.__y_screen - l:winHeigth
@@ -9694,52 +11770,52 @@ endif
             endif
 "call forms#log("g:forms#Form self.__y_screen=" . self.__y_screen)
             if self.__y_screen < 0
-              let y_success = g:self#IS_FALSE
+              let y_success = 0
             endif
           endif
           if l:winHeigth < formHeight || ! y_success
 
             let textlines = "Form too big for current window height.\n  Window height=".l:winHeigth."\n  Form height=" . formHeight."\nSuggest making window taller by ".(formHeight-l:winHeigth+1)." lines."
 
-            if s:handling_form_too_big_info == g:self#IS_TRUE
+            if s:handling_form_too_big_info == 1
               throw textlines
             else
-              let s:handling_form_too_big_info = g:self#IS_TRUE
+              let s:handling_form_too_big_info = 1
               try 
                 call forms#dialog#info#Make(textlines)
                 return
               catch /.*/
                 throw textlines
               finally
-                let s:handling_form_too_big_info = g:self#IS_FALSE
+                let s:handling_form_too_big_info = 0
               endtry
             endif
           endif
 
-          let x_success = g:self#IS_TRUE
+          let x_success = 1
           if self.__x_screen >= 0
             if l:winWidth < formWidth + self.__x_screen
               let xdelta = formWidth + self.__x_screen - l:winWidth
               let self.__x_screen -= xdelta
             endif
             if self.__x_screen < 0
-              let x_success = g:self#IS_FALSE
+              let x_success = 0
             endif
           endif
           if l:winWidth < formWidth || ! x_success
-            let textlines = "Form too big for current window width.\n  Window width=".l:winWidth."\n  Form width=" . formWidth."\nSuggest making window wider by ".(formHeight-l:winHeigth+1)." columns."
+            let textlines = "Form too big for current window width.\n  Window width=".l:winWidth."\n  Form width=" . formWidth."\nSuggest making window wider by ".(formWidth-l:winWidth+1)." columns."
 
-            if s:handling_form_too_big_info == g:self#IS_TRUE
+            if s:handling_form_too_big_info == 1
               throw textlines
             else
-              let s:handling_form_too_big_info = g:self#IS_TRUE
+              let s:handling_form_too_big_info = 1
               try 
                 call forms#dialog#info#Make(textlines)
                 return
               catch /.*/
                 throw textlines
               finally
-                let s:handling_form_too_big_info = g:self#IS_FALSE
+                let s:handling_form_too_big_info = 0
               endtry
             endif
           endif
@@ -9935,10 +12011,16 @@ endif
             if rval.type == 'Exit'
               " nothing
             elseif rval.type == 'ReSize'
-              let run_viewer = g:self#IS_TRUE
+              let run_viewer = 1
             elseif rval.type == 'Command'
-              if forms#ViewerStackDepth() > 1
+"call forms#logforce("g:forms#Form after processing command event: stack depth". forms#ViewerStackDepth())
+              if forms#ViewerStackDepth() > 0
+                let event = {
+                      \ 'type': 'Command',
+                      \ 'command': rval.command
+                      \ }
                 call self.unGetChar(event)
+                break
               else
                 let command = rval.command
               endif
@@ -9984,21 +12066,22 @@ endif
 
           " Need to delete all of the glyph's highlights
           " because the new form might be smaller than the current form.
-          if run_viewer == g:self#IS_TRUE
+          if run_viewer == 1
             call forms#DeleteHighLights(self.__body)
           endif
 
         endwhile
 
       catch /Vim.*/
-        if g:forms_log_enabled == g:self#IS_TRUE
+        if g:forms_log_enabled == 1
           call forms#log("Caught Vim Exception: " . v:exception . " at " . v:throwpoint)
           echo v:exception
         else
+" call forms#logforce("Caught Vim Exception: " . v:exception . " at " . v:throwpoint)
           echoerr v:exception . " at " . v:throwpoint
         endif
       catch /.*/
-        if g:forms_log_enabled == g:self#IS_TRUE
+        if g:forms_log_enabled == 1
           call forms#log("Caught Exception: " . v:exception . " at " . v:throwpoint)
           echo v:exception
         else
@@ -10074,6 +12157,10 @@ endif
           call winrestview(save_view)
         endif
 
+        if self.__open_in_tab
+          quit!
+        endif
+
       endtry
 
 " call forms#log("g:forms#Form.run BOTTOM command=".command)
@@ -10091,7 +12178,7 @@ endif
             execute x
           endif
         catch /.*/
-          if g:forms_log_enabled == g:self#IS_TRUE
+          if g:forms_log_enabled == 1
             call forms#log("g:forms#Form.run Caught Exception: " . v:exception . " at " . v:throwpoint)
             echo v:exception
           else
@@ -10272,6 +12359,18 @@ function! forms#loadPolyPrototype()
       endfor
     endfunction
     let g:forms#Poly.hide  = function("FORMS_POLY_hide")
+
+" XXXXXXXXXXXXXXXXX
+    function! FORMS_POLY_generateFocusList(flist) dict
+      if self.canFocus() 
+        call add(a:flist, self) 
+      else
+        for child in self.children()
+          call child.generateFocusList(a:flist)
+        endfor
+      endif
+    endfunction
+    let g:forms#Poly.generateFocusList = function("FORMS_POLY_generateFocusList")
 
     function! FORMS_POLY_setChildStatus(index, status) dict
       call self.__children[a:index].setStatus(a:status)
@@ -10839,6 +12938,14 @@ function! forms#loadDeckPrototype()
         throw "Deck.init: card greater than or equal to children count " . card
       endif
 
+if 0
+" XXXXXXXXXXXXXXXXX
+      let flist = []
+      call forms#GenerateFocusList(self, flist)
+      let self.__canFocus = ! empty(flist)
+call forms#log("g:forms#Deck.init canFocus=". self.__canFocus)
+endif
+
       return self
     endfunction
     let g:forms#Deck.init  = function("FORMS_DECK_init")
@@ -10864,6 +12971,18 @@ function! forms#loadDeckPrototype()
     endfunction
     let g:forms#Deck.reinit  = function("FORMS_DECK_reinit")
 
+" XXXXXXXXXXXXXXXXX
+    function! FORMS_DECK_generateFocusList(flist) dict
+      if self.canFocus() 
+        call add(a:flist, self) 
+      else
+        let children = self.__children
+        let child = children[self.__card]
+        call child.generateFocusList(a:flist)
+      endif
+    endfunction
+    let g:forms#Deck.generateFocusList = function("FORMS_DECK_generateFocusList")
+
     "-----------------------------------------------
     " deck methods
     "-----------------------------------------------
@@ -10874,6 +12993,7 @@ function! forms#loadDeckPrototype()
     let g:forms#Deck.getCard  = function("FORMS_DECK_getCard")
 
     function! FORMS_DECK_setCard(card) dict
+"call forms#logforce("g:forms#Deck.setCard card=". a:card)
       if a:card < 0 
         throw "Deck.setCard: card less than 0 " . card
       elseif a:card >= len(self.__children)
@@ -10885,11 +13005,18 @@ function! forms#loadDeckPrototype()
         call child.hide()
 
         let self.__card = a:card
-        if exists("self.__textblock")
-" call forms#log("g:forms#Deck.setCard add textblock")
-          call forms#ViewerRedrawListAdd(self.__textblock) 
-        endif
         call forms#ViewerRedrawListAdd(self) 
+
+        call forms#PrependUniqueInput({'type': 'ReFocus'})
+if 0
+" XXXXXXXXXXXXXXXXX
+        if self.__canFocus
+call forms#logforce("g:forms#Deck.setCard card=". a:card . ' SHOULD REFOCUS')
+          call forms#PrependUniqueInput({'type': 'ReFocus'})
+        else
+call forms#logforce("g:forms#Deck.setCard card=". a:card . ' SHOULD NOT REFOCUS')
+        endif
+endif
       endif
     endfunction
     let g:forms#Deck.setCard  = function("FORMS_DECK_setCard")
@@ -10916,7 +13043,7 @@ function! forms#loadDeckPrototype()
     let g:forms#Deck.requestedSize  = function("FORMS_DECK_requestedSize")
 
     function! FORMS_DECK_draw(allocation) dict
-" call forms#log("g:forms#Deck.draw" .  string(a:allocation))
+"call forms#logforce("g:forms#Deck.draw" .  string(a:allocation))
       let self.__allocation = a:allocation
       let a = a:allocation
 
@@ -10929,27 +13056,14 @@ function! forms#loadDeckPrototype()
         let valignment = self.__valignment
         let char = ''
 
-        " Must capture background in a TextBlock
-        " Why? 1) Cards have different sizes and 
-        " 2) So that when only the deck has changed (and a redraw()
-        " rather than a full top down draw is called) its background
-        " as well as itself can be put on the Viewer ReDraw list
-        if ! exists("self.__textblock")
-          let fulllines = getline(line, line+height-1)
-          let textblock = []
-          for fline in fulllines
-            " let pline = fline[column-1 : column+width-2]
-            " let pline = fline[column : column+width-2]
-            let pline = fline[column : column+width-1]
-" call forms#log("g:forms#Deck.draw pline=" . pline . "END")
-            call add(textblock, pline)
-          endfor
-          let attrs = { 
-                      \ 'textblock': textblock,
-                      \ 'allocation': copy(a:allocation)
-                      \ }
-          let self.__textblock = forms#newTextBlock(attrs)
-        endif
+
+        " clear the deck
+        let str = repeat(' ', width)
+        let cnt = 0
+        while cnt < height
+          call forms#SetStringAt(str, line+cnt, column)
+          let cnt += 1
+        endwhile
 
         let card = self.__card
 "   call forms#log("g:forms#Deck.draw card=" .  card)
@@ -11008,7 +13122,7 @@ endif
 function! forms#loadFixedLayout()
   if !exists("g:forms#FixedLayout")
     let g:forms#FixedLayout = forms#loadPolyPrototype().clone('forms#FixedLayout')
-    let g:forms#FixedLayout.__is_validated = g:self#IS_FALSE
+    let g:forms#FixedLayout.__is_validated = 0
     let g:forms#FixedLayout.__width = -1
     let g:forms#FixedLayout.__height = -1
     let g:forms#FixedLayout.__x_positions = []
@@ -11067,7 +13181,7 @@ function! forms#loadFixedLayout()
               let cnt += 1
             endwhile
           endif
-          let self.__is_validated = g:self#IS_TRUE
+          let self.__is_validated = 1
         endif
 
         if l:w == -1 || l:h == -1
@@ -11961,8 +14075,8 @@ function! forms#loadMenuPrototype()
         let type = item.type
         if type == 'separator'
           let char = (&encoding == 'utf-8') 
-                        \ ?  b:forms_BDLightHorizontal 
-                        \ : b:forms_horz
+                        \ ?  g:forms_BDLightHorizontal 
+                        \ : g:forms_horz
           let itemGlyph = forms#newHLine({'char': char})
           call add(flist, {'canfocus': 0})
 
@@ -12531,19 +14645,19 @@ function! forms#loadMenuPrototype()
         endif
       endif
 
-      let needs_redraw = g:self#IS_FALSE
+      let needs_redraw = 0
       let size = self.__size
       let pos = self.__pos
       if size > 0
         if pos >= self.__win_start + size
           while pos >= self.__win_start + size
             let self.__win_start += 1
-            let needs_redraw = g:self#IS_TRUE
+            let needs_redraw = 1
           endwhile
         elseif self.__win_start > 0 && pos < self.__win_start
           while self.__win_start > 0 && pos < self.__win_start
             let self.__win_start -= 1
-            let needs_redraw = g:self#IS_TRUE
+            let needs_redraw = 1
           endwhile
         endif
       endif
@@ -12940,6 +15054,20 @@ function! forms#loadGridPrototype()
       endfor
     endfunction
     let g:forms#Grid.hide  = function("FORMS_GRID_hide")
+
+" XXXXXXXXXXXXXXXXX
+    function! FORMS_GRID_generateFocusList(flist) dict
+      if self.canFocus() 
+        call add(a:flist, self) 
+      else
+        for minor in self.major()
+          for child in minor
+            call child.generateFocusList(a:flist)
+          endfor
+        endfor
+      endif
+    endfunction
+    let g:forms#Grid.generateFocusList = function("FORMS_GRID_generateFocusList")
 
     function! FORMS_GRID_nodeType() dict
       return g:GRID_NODE
@@ -13754,6 +15882,16 @@ function! forms#GenerateFocusList(glyph, flist)
   let nodeType = a:glyph.nodeType()
   if nodeType == g:LEAF_NODE
     if a:glyph.canFocus() | call add(a:flist, a:glyph) | endif
+  else
+    call a:glyph.generateFocusList(a:flist)
+  endif
+
+
+if 0
+" XXXXXXXXXXXXXXXXX
+  let nodeType = a:glyph.nodeType()
+  if nodeType == g:LEAF_NODE
+    if a:glyph.canFocus() | call add(a:flist, a:glyph) | endif
   elseif nodeType == g:MONO_NODE
     if a:glyph.canFocus() 
       call add(a:flist, a:glyph) 
@@ -13781,6 +15919,7 @@ function! forms#GenerateFocusList(glyph, flist)
   else
     throw "Unknown glyph nodeType " . nodeType
   endif
+endif
 endfunction
 
 " ------------------------------------------------------------ 
@@ -14194,23 +16333,23 @@ endfunction
 "---------------------------------------------------------------------------
 " Latin (non-UTF-8) Arrow Drawing Characters: {{{2
 "-------------------------------------------------------------------------------
-if !exists("b:forms_lwarrow") | let b:forms_lwarrow = '<' | endif
-if !exists("b:forms_uwarrow") | let b:forms_uwarrow = '^' | endif
-if !exists("b:forms_rwarrow") | let b:forms_rwarrow = '>' | endif
-if !exists("b:forms_dwarrow") | let b:forms_dwarrow = 'v' | endif
+if !exists("g:forms_lwarrow") | let g:forms_lwarrow = '<' | endif
+if !exists("g:forms_uwarrow") | let g:forms_uwarrow = '^' | endif
+if !exists("g:forms_rwarrow") | let g:forms_rwarrow = '>' | endif
+if !exists("g:forms_dwarrow") | let g:forms_dwarrow = 'v' | endif
 
 "---------------------------------------------------------------------------
 " UTF-8 Arrow Characters: {{{2
 "-------------------------------------------------------------------------------
 
   " '←' 8592 2190 &larr; LEFTWARDS ARROW  (present in WGL4 and in Symbol font)
-  let b:forms_LWArrow = '←'
+  let g:forms_LWArrow = '←'
   " '↑' 8593 2191 &uarr; UPWARDS ARROW   (present in WGL4 and in Symbol font)
-  let b:forms_UWArrow = '↑'
+  let g:forms_UWArrow = '↑'
   " '→' 8594 2192 &rarr; RIGHTWARDS ARROW (present in WGL4 and in Symbol font)
-  let b:forms_RWArrow = '→'
+  let g:forms_RWArrow = '→'
   " '↓' 8595 2193 &darr; DOWNWARDS ARROW  (present in WGL4 and in Symbol font)
-  let b:forms_DWArrow = '↓'
+  let g:forms_DWArrow = '↓'
 
 " ------------------------------------------------------------ 
 " forms#LookupArrowDrawingCharacterSet: {{{2
@@ -14221,8 +16360,8 @@ if !exists("b:forms_dwarrow") | let b:forms_dwarrow = 'v' | endif
 " ------------------------------------------------------------ 
 function! forms#LookupArrowDrawingCharacterSet()
   return (&encoding == 'utf-8')
-    \ ? [ b:forms_LWArrow, b:forms_UWArrow, b:forms_RWArrow, b:forms_DWArrow ]
-    \ : [ b:forms_lwarrow, b:forms_uwarrow, b:forms_rwarrow, b:forms_dwarrow ]
+    \ ? [ g:forms_LWArrow, g:forms_UWArrow, g:forms_RWArrow, g:forms_DWArrow ]
+    \ : [ g:forms_lwarrow, g:forms_uwarrow, g:forms_rwarrow, g:forms_dwarrow ]
   endif
 endfunction
 
@@ -14231,16 +16370,16 @@ endfunction
 "---------------------------------------------------------------------------
 " Latin (non-UTF-8) Box Drawing Characters: {{{2
 "-------------------------------------------------------------------------------
-if !exists("b:forms_vert") | let b:forms_vert = '|' | endif
-if !exists("b:forms_horz") | let b:forms_horz = '-' | endif
-if !exists("b:forms_dr")   | let b:forms_dr  = '+'  | endif
-if !exists("b:forms_dl")   | let b:forms_dl  = '+'  | endif
-if !exists("b:forms_ur")   | let b:forms_ur  = '+'  | endif
-if !exists("b:forms_ul")   | let b:forms_ul  = '+'  | endif
-if !exists("b:forms_d")    | let b:forms_d   = '+'  | endif
-if !exists("b:forms_u")    | let b:forms_u   = '+'  | endif
-if !exists("b:forms_l")    | let b:forms_l   = '+'  | endif
-if !exists("b:forms_r")    | let b:forms_r   = '+'  | endif
+if !exists("g:forms_vert") | let g:forms_vert = '|' | endif
+if !exists("g:forms_horz") | let g:forms_horz = '-' | endif
+if !exists("g:forms_dr")   | let g:forms_dr  = '+'  | endif
+if !exists("g:forms_dl")   | let g:forms_dl  = '+'  | endif
+if !exists("g:forms_ur")   | let g:forms_ur  = '+'  | endif
+if !exists("g:forms_ul")   | let g:forms_ul  = '+'  | endif
+if !exists("g:forms_d")    | let g:forms_d   = '+'  | endif
+if !exists("g:forms_u")    | let g:forms_u   = '+'  | endif
+if !exists("g:forms_l")    | let g:forms_l   = '+'  | endif
+if !exists("g:forms_r")    | let g:forms_r   = '+'  | endif
 
 
 " format for box drawing char set: dr  uh  dl  rv  ul  lh  ur  lv
@@ -14249,363 +16388,363 @@ if !exists("b:forms_r")    | let b:forms_r   = '+'  | endif
 "-------------------------------------------------------------------------------
 
   " '─' 9472 2500 BOX DRAWINGS LIGHT HORIZONTAL (present in WGL4)
-  let b:forms_BDLightHorizontal = '─'
+  let g:forms_BDLightHorizontal = '─'
   " '━' 9473 2501 BOX DRAWINGS HEAVY HORIZONTAL
-  let b:forms_BDHeavyHorizontal = '━'
+  let g:forms_BDHeavyHorizontal = '━'
   " '│' 9474 2502 BOX DRAWINGS LIGHT VERTICAL (present in WGL4)
-  let b:forms_BDLightVertical = '│'
+  let g:forms_BDLightVertical = '│'
   " '┃' 9475 2503 BOX DRAWINGS HEAVY VERTICAL
-  let b:forms_BDHeavyVertical = '┃'
+  let g:forms_BDHeavyVertical = '┃'
   " '┄' 9476 2504 BOX DRAWINGS LIGHT TRIPLE DASH HORIZONTAL
-  let b:forms_BDLightTripleDashHorizontal = '┄'
+  let g:forms_BDLightTripleDashHorizontal = '┄'
   " '┅' 9477 2505 BOX DRAWINGS HEAVY TRIPLE DASH HORIZONTAL
-  let b:forms_BDHeavyTripleDashHorizontal = '┅'
+  let g:forms_BDHeavyTripleDashHorizontal = '┅'
   " '┆' 9478 2506 BOX DRAWINGS LIGHT TRIPLE DASH VERTICAL
-  let b:forms_BDLightTripleDashVertical = '┆'
+  let g:forms_BDLightTripleDashVertical = '┆'
   " '┇' 9479 2507 BOX DRAWINGS HEAVY TRIPLE DASH VERTICAL
-  let b:forms_BDHeavyTripleDashVertical = '┇'
+  let g:forms_BDHeavyTripleDashVertical = '┇'
   " '┈' 9480 2508 BOX DRAWINGS LIGHT QUADRUPLE DASH HORIZONTAL
-  let b:forms_BDLightQuadrupleDashHorizontal = '┈'
+  let g:forms_BDLightQuadrupleDashHorizontal = '┈'
   " '┉' 9481 2509 BOX DRAWINGS HEAVY QUADRUPLE DASH HORIZONTAL
-  let b:forms_BDHeavyQuadrupleDashHorizontal = '┉'
+  let g:forms_BDHeavyQuadrupleDashHorizontal = '┉'
   " '┊' 9482 250A BOX DRAWINGS LIGHT QUADRUPLE DASH VERTICAL        
-  let b:forms_BDLightQuadrupleDashVertical = '┊'
+  let g:forms_BDLightQuadrupleDashVertical = '┊'
   " '┋' 9483 250B BOX DRAWINGS HEAVY QUADRUPLE DASH VERTICAL        
-  let b:forms_BDHeavyQuadrupleDashVertical = '┋'
+  let g:forms_BDHeavyQuadrupleDashVertical = '┋'
 
   " '┌' 9484 250C BOX DRAWINGS LIGHT DOWN AND RIGHT (present in WGL4)
-  let b:forms_BDLightDownAndRight = '┌'
+  let g:forms_BDLightDownAndRight = '┌'
   " '┍' 9485 250D BOX DRAWINGS DOWN LIGHT AND RIGHT HEAVY
-  let b:forms_BDDownLightAndRightHeavy = '┍'
+  let g:forms_BDDownLightAndRightHeavy = '┍'
   " '┎' 9486 250E BOX DRAWINGS DOWN HEAVY AND RIGHT LIGHT
-  let b:forms_BDDownHeavyAndRightLight = '┎'
+  let g:forms_BDDownHeavyAndRightLight = '┎'
   " '┏' 9487 250F BOX DRAWINGS HEAVY DOWN AND RIGHT
-  let b:forms_BDHeavyDownAndRight = '┏'
+  let g:forms_BDHeavyDownAndRight = '┏'
   " '┐' 9488 2510 BOX DRAWINGS LIGHT DOWN AND LEFT (present in WGL4)
-  let b:forms_BDLightDownAndLeft = '┐'
+  let g:forms_BDLightDownAndLeft = '┐'
   " '┑' 9489 2511 BOX DRAWINGS DOWN LIGHT AND LEFT HEAVY
-  let b:forms_BDDownLightAndLeftHeavy = '┑'
+  let g:forms_BDDownLightAndLeftHeavy = '┑'
   " '┒' 9490 2512 BOX DRAWINGS DOWN HEAVY AND LEFT LIGHT
-  let b:forms_BDDownHeavyAndLeftLight = '┒'
+  let g:forms_BDDownHeavyAndLeftLight = '┒'
   " '┓' 9491 2513 BOX DRAWINGS HEAVY DOWN AND LEFT
-  let b:forms_BDHeavyDownAndLeft = '┓'
+  let g:forms_BDHeavyDownAndLeft = '┓'
   " '└' 9492 2514 BOX DRAWINGS LIGHT UP AND RIGHT (present in WGL4)
-  let b:forms_BDLightUpAndRight = '└'
+  let g:forms_BDLightUpAndRight = '└'
   " '┕' 9493 2515 BOX DRAWINGS UP LIGHT AND RIGHT HEAVY
-  let b:forms_BDUpLightAndRightHeavy = '┕'
+  let g:forms_BDUpLightAndRightHeavy = '┕'
   " '┖' 9494 2516 BOX DRAWINGS UP HEAVY AND RIGHT LIGHT
-  let b:forms_BDUpHeavyAndRightLight = '┖'
+  let g:forms_BDUpHeavyAndRightLight = '┖'
   " '┗' 9495 2517 BOX DRAWINGS HEAVY UP AND RIGHT
-  let b:forms_BDHeavyUpAndRight = '┗'
+  let g:forms_BDHeavyUpAndRight = '┗'
   " '┘' 9496 2518 BOX DRAWINGS LIGHT UP AND LEFT (present in WGL4)
-  let b:forms_BDLightUpAndLeft = '┘'
+  let g:forms_BDLightUpAndLeft = '┘'
   " '┙' 9497 2519 BOX DRAWINGS UP LIGHT AND LEFT HEAVY
-  let b:forms_BDUpLightAndLeftHeavy = '┙'
+  let g:forms_BDUpLightAndLeftHeavy = '┙'
   " '┚' 9498 251A BOX DRAWINGS UP HEAVY AND LEFT LIGHT
-  let b:forms_BDUpHeavyAndLeftLight = '┚'
+  let g:forms_BDUpHeavyAndLeftLight = '┚'
   " '┛' 9499 251B BOX DRAWINGS HEAVY UP AND LEFT        
-  let b:forms_BDHeavyUpAndLeft = '┛'
+  let g:forms_BDHeavyUpAndLeft = '┛'
 
   " '├' 9500 251C BOX DRAWINGS LIGHT VERTICAL AND RIGHT (present in WGL4)
-  let b:forms_BDLightVerticalAndRight = '├'
+  let g:forms_BDLightVerticalAndRight = '├'
   " '┝' 9501 251D BOX DRAWINGS VERTICAL LIGHT AND RIGHT HEAVY
-  let b:forms_BDVerticalLightAndRIghtHeavy = '┝'
+  let g:forms_BDVerticalLightAndRIghtHeavy = '┝'
   " '┞' 9502 251E BOX DRAWINGS UP HEAVY AND RIGHT DOWN LIGHT
-  let b:forms_BDUpHeavyAndRIghtDownLight = '┞'
+  let g:forms_BDUpHeavyAndRIghtDownLight = '┞'
   " '┟' 9503 251F BOX DRAWINGS DOWN HEAVY AND RIGHT UP LIGHT
-  let b:forms_BDDownHeavyAndRightUpLight = '┟'
+  let g:forms_BDDownHeavyAndRightUpLight = '┟'
   " '┠' 9504 2520 BOX DRAWINGS VERTICAL HEAVY AND RIGHT LIGHT
-  let b:forms_BDVerticalHeavyAndRightLight = '┠'
+  let g:forms_BDVerticalHeavyAndRightLight = '┠'
   " '┡' 9505 2521 BOX DRAWINGS DOWN LIGHT AND RIGHT UP HEAVY
-  let b:forms_BDDownLightAndRIghtUpHeavy = '┡'
+  let g:forms_BDDownLightAndRIghtUpHeavy = '┡'
   " '┢' 9506 2522 BOX DRAWINGS UP LIGHT AND RIGHT DOWN HEAVY
-  let b:forms_BDUpLightAndRightDownHeavy = '┢'
+  let g:forms_BDUpLightAndRightDownHeavy = '┢'
   " '┣' 9507 2523 BOX DRAWINGS HEAVY VERTICAL AND RIGHT
-  let b:forms_BDHeavyVerticalAndRight = '┣'
+  let g:forms_BDHeavyVerticalAndRight = '┣'
   " '┤' 9508 2524 BOX DRAWINGS LIGHT VERTICAL AND LEFT (present in WGL4)
-  let b:forms_BDLightVerticalAndLeft = '┤'
+  let g:forms_BDLightVerticalAndLeft = '┤'
   " '┥' 9509 2525 BOX DRAWINGS VERTICAL LIGHT AND LEFT HEAVY
-  let b:forms_BDVerticalLightAndLeftHeavy = '┥'
+  let g:forms_BDVerticalLightAndLeftHeavy = '┥'
   " '┦' 9510 2526 BOX DRAWINGS UP HEAVY AND LEFT DOWN LIGHT       
-  let b:forms_BDUpHeavyAndLeftDownLight = '┦'
+  let g:forms_BDUpHeavyAndLeftDownLight = '┦'
   " '┧' 9511 2527 BOX DRAWINGS DOWN HEAVY AND LEFT UP LIGHT
-  let b:forms_BDDownHeavyAndLeftUpLight = '┧'
+  let g:forms_BDDownHeavyAndLeftUpLight = '┧'
   " '┨' 9512 2528 BOX DRAWINGS VERTICAL HEAVY AND LEFT LIGHT            
-  let b:forms_BDVerticalHeavyAndLeftLight = '┨'
+  let g:forms_BDVerticalHeavyAndLeftLight = '┨'
   " '┩' 9513 2529 BOX DRAWINGS DOWN LIGHT AND LEFT UP HEAVY
-  let b:forms_BDDownLightAndLeftUpHeavy = '┩'
+  let g:forms_BDDownLightAndLeftUpHeavy = '┩'
   " '┪' 9514 252A BOX DRAWINGS UP LIGHT AND LEFT DOWN HEAVY
-  let b:forms_BDUpLightAndLeftDownHeavy = '┪'
+  let g:forms_BDUpLightAndLeftDownHeavy = '┪'
 
 
   " '┫' 9515 252B BOX DRAWINGS HEAVY VERTICAL AND LEFT
-  let b:forms_BDHeavyVerticalAndLeft = '┫'
+  let g:forms_BDHeavyVerticalAndLeft = '┫'
   " '┬' 9516 252C BOX DRAWINGS LIGHT DOWN AND HORIZONTAL (present in WGL4)
-  let b:forms_BDLightDownAndHorizontal = '┬'
+  let g:forms_BDLightDownAndHorizontal = '┬'
   " '┭' 9517 252D BOX DRAWINGS LEFT HEAVY AND RIGHT DOWN LIGHT
-  let b:forms_BDLeftHeavyAndRightDownLight = '┭'
+  let g:forms_BDLeftHeavyAndRightDownLight = '┭'
   " '┮' 9518 252E BOX DRAWINGS RIGHT HEAVY AND LEFT DOWN LIGHT
-  let b:forms_BDRightHeavyAndLeftDownLight = '┮'
+  let g:forms_BDRightHeavyAndLeftDownLight = '┮'
   " '┯' 9519 252F BOX DRAWINGS DOWN LIGHT AND HORIZONTAL HEAVY
-  let b:forms_BDDOwnLightAndHorizontalHeavy = '┯'
+  let g:forms_BDDOwnLightAndHorizontalHeavy = '┯'
   " '┰' 9520 2530 BOX DRAWINGS DOWN HEAVY AND HORIZONTAL LIGHT
-  let b:forms_BDDownHeavyAndHorizontalLight = '┰'
+  let g:forms_BDDownHeavyAndHorizontalLight = '┰'
   " '┱' 9521 2531 BOX DRAWINGS RIGHT LIGHT AND LEFT DOWN HEAVY
-  let b:forms_BDRightLightAndLeftDownHeavy = '┱'
+  let g:forms_BDRightLightAndLeftDownHeavy = '┱'
   " '┲' 9522 2532 BOX DRAWINGS LEFT LIGHT AND RIGHT DOWN HEAVY
-  let b:forms_BDLeftLightAndRightDownHeavy = '┲'
+  let g:forms_BDLeftLightAndRightDownHeavy = '┲'
   " '┳' 9523 2533 BOX DRAWINGS HEAVY DOWN AND HORIZONTAL
-  let b:forms_BDHeavyDownAndHorizontal = '┳'
+  let g:forms_BDHeavyDownAndHorizontal = '┳'
   " '┴' 9524 2534 BOX DRAWINGS LIGHT UP AND HORIZONTAL (present in WGL4)
-  let b:forms_BDLightUpAndHorizontal = '┴'
+  let g:forms_BDLightUpAndHorizontal = '┴'
   " '┵' 9525 2535 BOX DRAWINGS LEFT HEAVY AND RIGHT UP LIGHT
-  let b:forms_BDLeftHeavyAndRightUpLight = '┵'
+  let g:forms_BDLeftHeavyAndRightUpLight = '┵'
   " '┶' 9526 2536 BOX DRAWINGS RIGHT HEAVY AND LEFT UP LIGHT
-  let b:forms_BDRightHeavyAndLeftUpLight = '┶'
+  let g:forms_BDRightHeavyAndLeftUpLight = '┶'
   " '┷' 9527 2537 BOX DRAWINGS UP LIGHT AND HORIZONTAL HEAVY
-  let b:forms_BDUpLightAndHorizontalHeavy = '┷'
+  let g:forms_BDUpLightAndHorizontalHeavy = '┷'
   " '┸' 9528 2538 BOX DRAWINGS UP HEAVY AND HORIZONTAL LIGHT
-  let b:forms_BDUpHeavyAndHorizontalLight = '┸'
+  let g:forms_BDUpHeavyAndHorizontalLight = '┸'
   " '┹' 9529 2539 BOX DRAWINGS RIGHT LIGHT AND LEFT UP HEAVY
-  let b:forms_BDRightLightAndLeftUpHeavy = '┹'
+  let g:forms_BDRightLightAndLeftUpHeavy = '┹'
   " '┺' 9530 253A BOX DRAWINGS LEFT LIGHT AND RIGHT UP HEAVY
-  let b:forms_BDLeftLightAndRightUpHeavy = '┺'
+  let g:forms_BDLeftLightAndRightUpHeavy = '┺'
 
   " '┻' 9531 253B BOX DRAWINGS HEAVY UP AND HORIZONTAL
-  let b:forms_BDHeavyUpAndHorizontal = '┻'
+  let g:forms_BDHeavyUpAndHorizontal = '┻'
   " '┼' 9532 253C BOX DRAWINGS LIGHT VERTICAL AND HORIZONTAL (present in WGL4)
-  let b:forms_BDLightVerticalAndHorizontal = '┼'
+  let g:forms_BDLightVerticalAndHorizontal = '┼'
   " '┽' 9533 253D BOX DRAWINGS LEFT HEAVY AND RIGHT VERTICAL LIGHT
-  let b:forms_BDLeftHeavyAndRIghtVerticalLight = '┽'
+  let g:forms_BDLeftHeavyAndRIghtVerticalLight = '┽'
   " '┾' 9534 253E BOX DRAWINGS RIGHT HEAVY AND LEFT VERTICAL LIGHT
-  let b:forms_BDRIghtHeavyAndLeftVerticalLight = '┾'
+  let g:forms_BDRIghtHeavyAndLeftVerticalLight = '┾'
   " '┿' 9535 253F BOX DRAWINGS VERTICAL LIGHT AND HORIZONTAL HEAVY
-  let b:forms_BDVerticalLightAndHorizontalHeavy = '┿'
+  let g:forms_BDVerticalLightAndHorizontalHeavy = '┿'
   " '╀' 9536 2540 BOX DRAWINGS UP HEAVY AND DOWN HORIZONTAL LIGHT
-  let b:forms_BDUpHeavyAndDownHorizontalLight = '╀'
+  let g:forms_BDUpHeavyAndDownHorizontalLight = '╀'
   " '╁' 9537 2541 BOX DRAWINGS DOWN HEAVY AND UP HORIZONTAL LIGHT
-  let b:forms_BDDownHeavyAndUPHorizontalLight = '╁'
+  let g:forms_BDDownHeavyAndUPHorizontalLight = '╁'
   " '╂' 9538 2542 BOX DRAWINGS VERTICAL HEAVY AND HORIZONTAL LIGHT
-  let b:forms_BDVerticalHeavyAndHorizontalLight = '╂'
+  let g:forms_BDVerticalHeavyAndHorizontalLight = '╂'
   " '╃' 9539 2543 BOX DRAWINGS LEFT UP HEAVY AND RIGHT DOWN LIGHT
-  let b:forms_BDLeftUpHeavyAndRightDownLight = '╃'
+  let g:forms_BDLeftUpHeavyAndRightDownLight = '╃'
   " '╄' 9540 2544 BOX DRAWINGS RIGHT UP HEAVY AND LEFT DOWN LIGHT
-  let b:forms_BDRightUpHeavyAndLeftDownLight = '╄'
+  let g:forms_BDRightUpHeavyAndLeftDownLight = '╄'
   " '╅' 9541 2545 BOX DRAWINGS LEFT DOWN HEAVY AND RIGHT UP LIGHT
-  let b:forms_BDLeftDownHeavyAndRightUpLight = '╅'
+  let g:forms_BDLeftDownHeavyAndRightUpLight = '╅'
   " '╆' 9542 2546 BOX DRAWINGS RIGHT DOWN HEAVY AND LEFT UP LIGHT
-  let b:forms_BDRightDownHeavyAndLeftUpLight = '╆'
+  let g:forms_BDRightDownHeavyAndLeftUpLight = '╆'
   " '╇' 9543 2547 BOX DRAWINGS DOWN LIGHT AND UP HORIZONTAL HEAVY
-  let b:forms_BDDownLightAndUpHorizontalHeavy = '╇'
+  let g:forms_BDDownLightAndUpHorizontalHeavy = '╇'
   " '╈' 9544 2548 BOX DRAWINGS UP LIGHT AND DOWN HORIZONTAL HEAVY
-  let b:forms_BDUpLightAndDownHorizontalHeavy = '╈'
+  let g:forms_BDUpLightAndDownHorizontalHeavy = '╈'
   " '╉' 9545 2549 BOX DRAWINGS RIGHT LIGHT AND LEFT VERTICAL HEAVY
-  let b:forms_BDRightLightAndLeftVerticalHeavy = '╉'
+  let g:forms_BDRightLightAndLeftVerticalHeavy = '╉'
   " '╊' 9546 254A BOX DRAWINGS LEFT LIGHT AND RIGHT VERTICAL HEAVY
-  let b:forms_BDLeftLightAndRightVerticalHeavy = '╊'
+  let g:forms_BDLeftLightAndRightVerticalHeavy = '╊'
   " '╋' 9547 254B BOX DRAWINGS HEAVY VERTICAL AND HORIZONTAL        
-  let b:forms_BDHeavyVerticalAndHorizontal = '╋'
+  let g:forms_BDHeavyVerticalAndHorizontal = '╋'
 
 
   " '╌' 9548 254C BOX DRAWINGS LIGHT DOUBLE DASH HORIZONTAL
-  let b:forms_BDLightDoubleDashHorizontal = '╌'
+  let g:forms_BDLightDoubleDashHorizontal = '╌'
   " '╍' 9549 254D BOX DRAWINGS HEAVY DOUBLE DASH HORIZONTAL
-  let b:forms_BDHeavyDoubleDashHorizontal = '╍'
+  let g:forms_BDHeavyDoubleDashHorizontal = '╍'
   " '╎' 9550 254E BOX DRAWINGS LIGHT DOUBLE DASH VERTICAL
-  let b:forms_BDLightDoubleDashVertical = '╎'
+  let g:forms_BDLightDoubleDashVertical = '╎'
   " '╏' 9551 254F BOX DRAWINGS HEAVY DOUBLE DASH VERTICAL
-  let b:forms_BDHeavyDoubleDashVertical = '╏'
+  let g:forms_BDHeavyDoubleDashVertical = '╏'
 
 
   " '═' 9552 2550 BOX DRAWINGS DOUBLE HORIZONTAL (present in WGL4)
-  let b:forms_BDDoubleHorizontal = '═'
+  let g:forms_BDDoubleHorizontal = '═'
   " '║' 9553 2551 BOX DRAWINGS DOUBLE VERTICAL (present in WGL4)
-  let b:forms_BDDoubleVertical = '║'
+  let g:forms_BDDoubleVertical = '║'
   " '╒' 9554 2552 BOX DRAWINGS DOWN SINGLE AND RIGHT DOUBLE (present in WGL4)
-  let b:forms_BDDownSingleAndRightDouble = '╒'
+  let g:forms_BDDownSingleAndRightDouble = '╒'
   " '╓' 9555 2553 BOX DRAWINGS DOWN DOUBLE AND RIGHT SINGLE (present in WGL4)
-  let b:forms_BDDownDoubleAndRightSingle = '╓'
+  let g:forms_BDDownDoubleAndRightSingle = '╓'
   " '╔' 9556 2554 BOX DRAWINGS DOUBLE DOWN AND RIGHT (present in WGL4)
-  let b:forms_BDDoubleDownAndRight = '╔'
+  let g:forms_BDDoubleDownAndRight = '╔'
   " '╕' 9557 2555 BOX DRAWINGS DOWN SINGLE AND LEFT DOUBLE (present inWGL4)
-  let b:forms_BDDownSingleAndLeftDouble = '╕'
+  let g:forms_BDDownSingleAndLeftDouble = '╕'
   " '╖' 9558 2556 BOX DRAWINGS DOWN DOUBLE AND LEFT SINGLE (present in WGL4)
-  let b:forms_BDDownDoubleAndLeftSingle = '╖'
+  let g:forms_BDDownDoubleAndLeftSingle = '╖'
   " '╗' 9559 2557 BOX DRAWINGS DOUBLE DOWN AND LEFT (present in WGL4)
-  let b:forms_BDDoubleDownAndLeft = '╗'
+  let g:forms_BDDoubleDownAndLeft = '╗'
   " '╘' 9560 2558 BOX DRAWINGS UP SINGLE AND RIGHT DOUBLE (present in WGL4)
-  let b:forms_BDUpSingleAndRightDouble = '╘'
+  let g:forms_BDUpSingleAndRightDouble = '╘'
   " '╙' 9561 2559 BOX DRAWINGS UP DOUBLE AND RIGHT SINGLE (present in WGL4)
-  let b:forms_BDUpDoubleAndRightSingle = '╙'
+  let g:forms_BDUpDoubleAndRightSingle = '╙'
   " '╚' 9562 255A BOX DRAWINGS DOUBLE UP AND RIGHT (present in WGL4)
-  let b:forms_BDDoubleUpAndRight = '╚'
+  let g:forms_BDDoubleUpAndRight = '╚'
   " '╛' 9563 255B BOX DRAWINGS UP SINGLE AND LEFT DOUBLE (present in WGL4)
-  let b:forms_BDUpSingleAndLeftDouble = '╛'
+  let g:forms_BDUpSingleAndLeftDouble = '╛'
   " '╜' 9564 255C BOX DRAWINGS UP DOUBLE AND LEFT SINGLE (present in WGL4)
-  let b:forms_BDUpDoubleAndLeftSingle = '╜'
+  let g:forms_BDUpDoubleAndLeftSingle = '╜'
   " '╝' 9565 255D BOX DRAWINGS DOUBLE UP AND LEFT (present in WGL4)
-  let b:forms_BDDoubleUpAndleft = '╝'
+  let g:forms_BDDoubleUpAndleft = '╝'
   " '╞' 9566 255E BOX DRAWINGS VERTICAL SINGLE AND RIGHT DOUBLE (present in WGL4)
-  let b:forms_BDVerticalSingleAndRightDouble = '╞'
+  let g:forms_BDVerticalSingleAndRightDouble = '╞'
   " '╟' 9567 255F BOX DRAWINGS VERTICAL DOUBLE AND RIGHT SINGLE (present in WGL4)
-  let b:forms_BDVertialDoubleAndRightSingle = '╟'
+  let g:forms_BDVertialDoubleAndRightSingle = '╟'
   " '╠' 9568 2560 BOX DRAWINGS DOUBLE VERTICAL AND RIGHT (present in WGL4)
-  let b:forms_BDDoubleVerticalAndRight = '╠'
+  let g:forms_BDDoubleVerticalAndRight = '╠'
   " '╡' 9569 2561 BOX DRAWINGS VERTICAL SINGLE AND LEFT DOUBLE (present in WGL4)
-  let b:forms_BDVerticalSingleAndLeftDouble = '╡'
+  let g:forms_BDVerticalSingleAndLeftDouble = '╡'
   " '╢' 9570 2562 BOX DRAWINGS VERTICAL DOUBLE AND LEFT SINGLE (present in WGL4)
-  let b:forms_BDVerticalDoubleAndLeftSingle = '╢'
+  let g:forms_BDVerticalDoubleAndLeftSingle = '╢'
   " '╣' 9571 2563 BOX DRAWINGS DOUBLE VERTICAL AND LEFT (present in WGL4)    
-  let b:forms_BDDoubleVerticalAndLeft = '╣'
+  let g:forms_BDDoubleVerticalAndLeft = '╣'
   " '╤' 9572 2564 BOX DRAWINGS DOWN SINGLE AND HORIZONTAL DOUBLE (present in WGL4)
-  let b:forms_BDDownSingleAndHorizontalDouble = '╤'
+  let g:forms_BDDownSingleAndHorizontalDouble = '╤'
   " '╥' 9573 2565 BOX DRAWINGS DOWN DOUBLE AND HORIZONTAL SINGLE (present in WGL4)
-  let b:forms_BDDownDoubleAndHorizontalSingle = '╥'
+  let g:forms_BDDownDoubleAndHorizontalSingle = '╥'
   " '╦' 9574 2566 BOX DRAWINGS DOUBLE DOWN AND HORIZONTAL (present in WGL4)
-  let b:forms_BDDoubleDownAndHorizontal = '╦'
+  let g:forms_BDDoubleDownAndHorizontal = '╦'
   " '╧' 9575 2567 BOX DRAWINGS UP SINGLE AND HORIZONTAL DOUBLE (present in WGL4)
-  let b:forms_BDUpSingleAndHorizontalDouble = '╧'
+  let g:forms_BDUpSingleAndHorizontalDouble = '╧'
   " '╨' 9576 2568 BOX DRAWINGS UP DOUBLE AND HORIZONTAL SINGLE (present in WGL4)
-  let b:forms_BDUpDoubleAndHorizontalSingle = '╨'
+  let g:forms_BDUpDoubleAndHorizontalSingle = '╨'
   " '╩' 9577 2569 BOX DRAWINGS DOUBLE UP AND HORIZONTAL (present in WGL4)
-  let b:forms_BDDoubleUpAndHorizontal = '╩'
+  let g:forms_BDDoubleUpAndHorizontal = '╩'
   " '╪' 9578 256A BOX DRAWINGS VERTICAL SINGLE AND HORIZONTAL DOUBLE (present in WGL4)
-  let b:forms_BDVertialSingleAndHorizontalDouble = '╪'
+  let g:forms_BDVertialSingleAndHorizontalDouble = '╪'
   " '╫' 9579 256B BOX DRAWINGS VERTICAL DOUBLE AND HORIZONTAL SINGLE (present in WGL4)
-  let b:forms_BDVertialDoubleAndHorixontalSingle = '╫'
+  let g:forms_BDVertialDoubleAndHorixontalSingle = '╫'
   " '╬' 9580 256C BOX DRAWINGS DOUBLE VERTICAL AND HORIZONTAL (present in WGL4)
-  let b:forms_BDDoubleVerticalAndHorizontal = '╬'
+  let g:forms_BDDoubleVerticalAndHorizontal = '╬'
 
 
 
   " '╭' 9581 256D BOX DRAWINGS LIGHT ARC DOWN AND RIGH        T
-  let b:forms_BDLightArchDownAndRight = '╭'
+  let g:forms_BDLightArchDownAndRight = '╭'
   " '╮' 9582 256E BOX DRAWINGS LIGHT ARC DOWN AND LEFT
-  let b:forms_BDLightArchDownAndLeft = '╮'
+  let g:forms_BDLightArchDownAndLeft = '╮'
   " '╯' 9583 256F BOX DRAWINGS LIGHT ARC UP AND LEFT
-  let b:forms_BDLightArchUpAndLeft = '╯'
+  let g:forms_BDLightArchUpAndLeft = '╯'
   " '╰' 9584 2570 BOX DRAWINGS LIGHT ARC UP AND RIGHT
-  let b:forms_BDLightArchUpAndRight = '╰'
+  let g:forms_BDLightArchUpAndRight = '╰'
 
 
   " '╱' 9585 2571 BOX DRAWINGS LIGHT DIAGONAL UPPER RIGHT TO LOWER LEFT
-  let b:forms_BDLightDiagonalUpperRightToLowerLeft = '╱'
+  let g:forms_BDLightDiagonalUpperRightToLowerLeft = '╱'
   " '╲' 9586 2572 BOX DRAWINGS LIGHT DIAGONAL UPPER LEFT TO LOWER RIGHT       
-  let b:forms_BDLightDiagonalUpperLeftToLowerRight = '╲'
+  let g:forms_BDLightDiagonalUpperLeftToLowerRight = '╲'
   " '╳' 9587 2573 BOX DRAWINGS LIGHT DIAGONAL CROSS       
-  let b:forms_BDLightDiagonalCross = '╳'
+  let g:forms_BDLightDiagonalCross = '╳'
 
 
   " '╴' 9588 2574 BOX DRAWINGS LIGHT LEFT
-  let b:forms_BDLightLeft = '╴'
+  let g:forms_BDLightLeft = '╴'
   " '╵' 9589 2575 BOX DRAWINGS LIGHT UP
-  let b:forms_BDLightUp = '╵'
+  let g:forms_BDLightUp = '╵'
   " '╶' 9590 2576 BOX DRAWINGS LIGHT RIGHT
-  let b:forms_BDLightRight = '╶'
+  let g:forms_BDLightRight = '╶'
   " '╷' 9591 2577 BOX DRAWINGS LIGHT DOWN
-  let b:forms_BDLightDown = '╷'
+  let g:forms_BDLightDown = '╷'
   " '╸' 9592 2578 BOX DRAWINGS HEAVY LEFT         
-  let b:forms_BDHeavyLeft = '╸'
+  let g:forms_BDHeavyLeft = '╸'
   " '╹' 9593 2579 BOX DRAWINGS HEAVY UP
-  let b:forms_BDHeavyUp = '╹'
+  let g:forms_BDHeavyUp = '╹'
   " '╺' 9594 257A BOX DRAWINGS HEAVY RIGHT
-  let b:forms_BDHeavyRight = '╺'
+  let g:forms_BDHeavyRight = '╺'
   " '╻' 9595 257B BOX DRAWINGS HEAVY DOWN
-  let b:forms_BDHeavyDown = '╻'
+  let g:forms_BDHeavyDown = '╻'
   " '╼' 9596 257C BOX DRAWINGS LIGHT LEFT AND HEAVY RIGHT
-  let b:forms_BDLightLeftAndHeavyRight = '╼'
+  let g:forms_BDLightLeftAndHeavyRight = '╼'
   " '╽' 9597 257D BOX DRAWINGS LIGHT UP AND HEAVY DOWN
-  let b:forms_BDLightUpAndHeavyDown = '╽'
+  let g:forms_BDLightUpAndHeavyDown = '╽'
   " '╾' 9598 257E BOX DRAWINGS HEAVY LEFT AND LIGHT RIGHT
-  let b:forms_BDHeavyLeftAndLightRight = '╾'
+  let g:forms_BDHeavyLeftAndLightRight = '╾'
   " '╿' 9599 257F BOX DRAWINGS HEAVY UP AND LIGHT DOWN        
-  let b:forms_BDHeavyUpAndLightDown = '╿'
+  let g:forms_BDHeavyUpAndLightDown = '╿'
 
 
 
 
   " '▀' 9600 2580 UPPER HALF BLOCK (present in WGL4)
-  let b:forms_UpperHalfB = '▀'
+  let g:forms_UpperHalfB = '▀'
   " '▁' 9601 2581  LOWER ONE EIGHTH BLOCK
-  let b:forms_LowerOneEighthB = '▁'
+  let g:forms_LowerOneEighthB = '▁'
   " '▂' 9602 2582 LOWER ONE QUARTER BLOCK
-  let b:forms_LowerOneQuarterB = '▂'
+  let g:forms_LowerOneQuarterB = '▂'
   " '▃' 9603 2583 LOWER THREE EIGHTHS BLOCK
-  let b:forms_LowerThreeEighthsB = '▃'
+  let g:forms_LowerThreeEighthsB = '▃'
   " '▄' 9604 2584 LOWER HALF BLOCK (present in WGL4)
-  let b:forms_LowerHalfB = '▄'
+  let g:forms_LowerHalfB = '▄'
   " '▅' 9605 2585 LOWER FIVE EIGHTHS BLOCK
-  let b:forms_LowerFiveEighthsB = '▅'
+  let g:forms_LowerFiveEighthsB = '▅'
   " '▆' 9606 2586 LOWER THREE QUARTERS BLOCK
-  let b:forms_LowerThreeQuartersB = '▆'
+  let g:forms_LowerThreeQuartersB = '▆'
   " '▇' 9607 2587 LOWER SEVEN EIGHTHS BLOCK
-  let b:forms_LowerSevenEighthsB = '▇'
+  let g:forms_LowerSevenEighthsB = '▇'
 
 
   " '█' 9608 2588 FULL BLOCK (present in WGL4)
-  let b:forms_FullB = '█'
+  let g:forms_FullB = '█'
   " '▉' 9609 2589 LEFT SEVEN EIGHTHS BLOCK        
-  let b:forms_LeftSevenEighthsB = '▉'
+  let g:forms_LeftSevenEighthsB = '▉'
   " '▊' 9610 258A LEFT THREE QUARTERS BLOCK
-  let b:forms_LeftThreeQuartersB = '▊'
+  let g:forms_LeftThreeQuartersB = '▊'
   " '▋' 9611 258B LEFT FIVE EIGHTHS BLOCK
-  let b:forms_leftFiveEighthsB = '▋'
+  let g:forms_leftFiveEighthsB = '▋'
   " '▌' 9612 258C LEFT HALF BLOCK (present in WGL4)
-  let b:forms_LeftHalfB = '▌'
+  let g:forms_LeftHalfB = '▌'
   " '▍' 9613 258D LEFT THREE EIGHTHS BLOCK
-  let b:forms_LeftThreeEighthsB = '▍'
+  let g:forms_LeftThreeEighthsB = '▍'
   " '▎' 9614 258E LEFT ONE QUARTER BLOCK
-  let b:forms_LeftOneQuarterB = '▎'
+  let g:forms_LeftOneQuarterB = '▎'
   " '▏' 9615 258F LEFT ONE EIGHTH BLOCK
-  let b:forms_LeftOneEighthsB = '▏'
+  let g:forms_LeftOneEighthsB = '▏'
 
 
   " '▐' 9616 2590 RIGHT HALF BLOCK (present in WGL4)
-  let b:forms_RightHalfB = '▐' 
+  let g:forms_RightHalfB = '▐' 
   " '░' 9617 2591 LIGHT SHADE (present in WGL4)
-  let b:forms_LightShade = '░'
+  let g:forms_LightShade = '░'
   " '▒' 9618 2592 MEDIUM SHADE (present in WGL4)
-  let b:forms_MediumShade = '▒'
+  let g:forms_MediumShade = '▒'
   " '▓' 9619 2593 DARK SHADE (present in WGL4)
-  let b:forms_DarkShade = '▓'
+  let g:forms_DarkShade = '▓'
 
 
   " '▔' 9620 2594 UPPER ONE EIGHTH BLOCK
-  let b:forms_UpperOneEighthsB = '▔'
+  let g:forms_UpperOneEighthsB = '▔'
   " '▕' 9621 2595 RIGHT ONE EIGHTH BLOCK
-  let b:forms_RightOneEighthsB = '▕'
+  let g:forms_RightOneEighthsB = '▕'
   " '▖' 9622 2596 QUADRANT LOWER LEFT
-  let b:forms_QuardrantLowerLeft = '▖'
+  let g:forms_QuardrantLowerLeft = '▖'
   " '▗' 9623 2597 QUADRANT LOWER RIGHT
-  let b:forms_QuardrantLowerRight = '▗'
+  let g:forms_QuardrantLowerRight = '▗'
   " '▘' 9624 2598 QUADRANT UPPER LEFT
-  let b:forms_QuardrantUpperLeft = '▘'
+  let g:forms_QuardrantUpperLeft = '▘'
   " '▙' 9625 2599 QUADRANT UPPER LEFT AND LOWER LEFT AND LOWER RIGHT
-  let b:forms_QuardrantUpperLeftAndLowerLeftAndLowerRight = '▙'
+  let g:forms_QuardrantUpperLeftAndLowerLeftAndLowerRight = '▙'
   " '▚' 9626 259A QUADRANT UPPER LEFT AND LOWER RIGHT
-  let b:forms_QuadrantUpperLeftAndLowerRight = '▚'
+  let g:forms_QuadrantUpperLeftAndLowerRight = '▚'
   " '▛' 9627 259B QUADRANT UPPER LEFT AND UPPER RIGHT AND LOWER LEFT
-  let b:forms_QuadrantUpperLeftAndUpperRightAndLowerLeft = '▛'
+  let g:forms_QuadrantUpperLeftAndUpperRightAndLowerLeft = '▛'
   " '▜' 9628 259C QUADRANT UPPER LEFT AND UPPER RIGHT AND LOWER RIGHT
-  let b:forms_QuadrantUpperLeftAndUpperRightAndLowerRight = '▜'
+  let g:forms_QuadrantUpperLeftAndUpperRightAndLowerRight = '▜'
   " '▝' 9629 259D QUADRANT UPPER RIGHT
-  let b:forms_QuadrantUpperRight = '▝'
+  let g:forms_QuadrantUpperRight = '▝'
   " '▞' 9630 259E QUADRANT UPPER RIGHT AND LOWER LEFT
-  let b:forms_QuadrantUpperRightAndLowerLeft = '▞'
+  let g:forms_QuadrantUpperRightAndLowerLeft = '▞'
   " '▟' 9631 259F QUADRANT UPPER RIGHT AND LOWER LEFT AND LOWER RIGHT 
-  let b:forms_QuadrantUpperRightAndLowerLeftAndLowerRight = '▟'
+  let g:forms_QuadrantUpperRightAndLowerLeftAndLowerRight = '▟'
 
 
 
 
   " '◢' 9698 25E2  BLACK LOWER RIGHT TRIANGLE
-  let b:forms_GSBlackLowerRightTriangle = '◢'
+  let g:forms_GSBlackLowerRightTriangle = '◢'
   " '◣' 9699 25E3  BLACK LOWER LEFT TRIANGLE
-  let b:forms_GSBlackLowerLeftTriangle = '◣'
+  let g:forms_GSBlackLowerLeftTriangle = '◣'
   " '◤' 9700 25E4  BLACK UPPER LEFT TRIANGLE
-  let b:forms_GSBlackUpperLeftTriangle = '◤'
+  let g:forms_GSBlackUpperLeftTriangle = '◤'
   " '◥' 9701 25E5  BLACK UPPER RIGHT TRIANGLE  
-  let b:forms_GSBlackUpperRightTriangle = '◥'
+  let g:forms_GSBlackUpperRightTriangle = '◥'
 
 "---------------------------------------------------------------------------
 " Map of Box Drawing Character Sets: {{{2
@@ -14633,190 +16772,190 @@ if !exists("b:forms_r")    | let b:forms_r   = '+'  | endif
 let s:boxDrawingCharacterSets = {}
 
 let s:boxDrawingCharacterSets['default'] = [
-                        \ b:forms_dr,
-                        \ b:forms_horz,
-                        \ b:forms_dl,
-                        \ b:forms_vert,
-                        \ b:forms_ul,
-                        \ b:forms_horz,
-                        \ b:forms_ur,
-                        \ b:forms_vert,
+                        \ g:forms_dr,
+                        \ g:forms_horz,
+                        \ g:forms_dl,
+                        \ g:forms_vert,
+                        \ g:forms_ul,
+                        \ g:forms_horz,
+                        \ g:forms_ur,
+                        \ g:forms_vert,
                         \ ]
 
 let s:boxDrawingCharacterSets['light'] = [
-                        \ b:forms_BDLightDownAndRight,
-                        \ b:forms_BDLightHorizontal,
-                        \ b:forms_BDLightDownAndLeft,
-                        \ b:forms_BDLightVertical,
-                        \ b:forms_BDLightUpAndLeft,
-                        \ b:forms_BDLightHorizontal,
-                        \ b:forms_BDLightUpAndRight,
-                        \ b:forms_BDLightVertical,
+                        \ g:forms_BDLightDownAndRight,
+                        \ g:forms_BDLightHorizontal,
+                        \ g:forms_BDLightDownAndLeft,
+                        \ g:forms_BDLightVertical,
+                        \ g:forms_BDLightUpAndLeft,
+                        \ g:forms_BDLightHorizontal,
+                        \ g:forms_BDLightUpAndRight,
+                        \ g:forms_BDLightVertical,
                         \ ]
 
 let s:boxDrawingCharacterSets['heavy'] = [
-                        \ b:forms_BDHeavyDownAndRight,
-                        \ b:forms_BDHeavyHorizontal,
-                        \ b:forms_BDHeavyDownAndLeft,
-                        \ b:forms_BDHeavyVertical,
-                        \ b:forms_BDHeavyUpAndLeft,
-                        \ b:forms_BDHeavyHorizontal,
-                        \ b:forms_BDHeavyUpAndRight,
-                        \ b:forms_BDHeavyVertical,
+                        \ g:forms_BDHeavyDownAndRight,
+                        \ g:forms_BDHeavyHorizontal,
+                        \ g:forms_BDHeavyDownAndLeft,
+                        \ g:forms_BDHeavyVertical,
+                        \ g:forms_BDHeavyUpAndLeft,
+                        \ g:forms_BDHeavyHorizontal,
+                        \ g:forms_BDHeavyUpAndRight,
+                        \ g:forms_BDHeavyVertical,
                         \ ]
 
 let s:boxDrawingCharacterSets['double'] = [
-                        \ b:forms_BDDoubleDownAndRight,
-                        \ b:forms_BDDoubleHorizontal,
-                        \ b:forms_BDDoubleDownAndLeft,
-                        \ b:forms_BDDoubleVertical,
-                        \ b:forms_BDDoubleUpAndleft,
-                        \ b:forms_BDDoubleHorizontal,
-                        \ b:forms_BDDoubleUpAndRight,
-                        \ b:forms_BDDoubleVertical,
+                        \ g:forms_BDDoubleDownAndRight,
+                        \ g:forms_BDDoubleHorizontal,
+                        \ g:forms_BDDoubleDownAndLeft,
+                        \ g:forms_BDDoubleVertical,
+                        \ g:forms_BDDoubleUpAndleft,
+                        \ g:forms_BDDoubleHorizontal,
+                        \ g:forms_BDDoubleUpAndRight,
+                        \ g:forms_BDDoubleVertical,
                         \ ]
 
 let s:boxDrawingCharacterSets['light_arc'] = [
-                        \ b:forms_BDLightArchDownAndRight,
-                        \ b:forms_BDLightHorizontal,
-                        \ b:forms_BDLightArchDownAndLeft,
-                        \ b:forms_BDLightVertical,
-                        \ b:forms_BDLightArchUpAndLeft,
-                        \ b:forms_BDLightHorizontal,
-                        \ b:forms_BDLightArchUpAndRight,
-                        \ b:forms_BDLightVertical,
+                        \ g:forms_BDLightArchDownAndRight,
+                        \ g:forms_BDLightHorizontal,
+                        \ g:forms_BDLightArchDownAndLeft,
+                        \ g:forms_BDLightVertical,
+                        \ g:forms_BDLightArchUpAndLeft,
+                        \ g:forms_BDLightHorizontal,
+                        \ g:forms_BDLightArchUpAndRight,
+                        \ g:forms_BDLightVertical,
                         \ ]
 
 let s:boxDrawingCharacterSets['light_double_dash'] = [
-                        \ b:forms_BDLightDownAndRight,
-                        \ b:forms_BDLightDoubleDashHorizontal,
-                        \ b:forms_BDLightDownAndLeft,
-                        \ b:forms_BDLightDoubleDashVertical,
-                        \ b:forms_BDLightUpAndLeft,
-                        \ b:forms_BDLightDoubleDashHorizontal,
-                        \ b:forms_BDLightUpAndRight,
-                        \ b:forms_BDLightDoubleDashVertical
+                        \ g:forms_BDLightDownAndRight,
+                        \ g:forms_BDLightDoubleDashHorizontal,
+                        \ g:forms_BDLightDownAndLeft,
+                        \ g:forms_BDLightDoubleDashVertical,
+                        \ g:forms_BDLightUpAndLeft,
+                        \ g:forms_BDLightDoubleDashHorizontal,
+                        \ g:forms_BDLightUpAndRight,
+                        \ g:forms_BDLightDoubleDashVertical
                         \ ]
 
 let s:boxDrawingCharacterSets['light_double_dash_arc'] = [
-                        \ b:forms_BDLightArchDownAndRight,
-                        \ b:forms_BDLightDoubleDashHorizontal,
-                        \ b:forms_BDLightArchDownAndLeft,
-                        \ b:forms_BDLightDoubleDashVertical,
-                        \ b:forms_BDLightArchUpAndLeft,
-                        \ b:forms_BDLightDoubleDashHorizontal,
-                        \ b:forms_BDLightArchUpAndRight,
-                        \ b:forms_BDLightDoubleDashVertical
+                        \ g:forms_BDLightArchDownAndRight,
+                        \ g:forms_BDLightDoubleDashHorizontal,
+                        \ g:forms_BDLightArchDownAndLeft,
+                        \ g:forms_BDLightDoubleDashVertical,
+                        \ g:forms_BDLightArchUpAndLeft,
+                        \ g:forms_BDLightDoubleDashHorizontal,
+                        \ g:forms_BDLightArchUpAndRight,
+                        \ g:forms_BDLightDoubleDashVertical
                         \ ]
 
 let s:boxDrawingCharacterSets['heavy_double_dash'] = [
-                        \ b:forms_BDHeavyDownAndRight,
-                        \ b:forms_BDHeavyDoubleDashHorizontal,
-                        \ b:forms_BDHeavyDownAndLeft,
-                        \ b:forms_BDHeavyDoubleDashVertical,
-                        \ b:forms_BDHeavyUpAndLeft,
-                        \ b:forms_BDHeavyDoubleDashHorizontal,
-                        \ b:forms_BDHeavyUpAndRight,
-                        \ b:forms_BDHeavyDoubleDashVertical
+                        \ g:forms_BDHeavyDownAndRight,
+                        \ g:forms_BDHeavyDoubleDashHorizontal,
+                        \ g:forms_BDHeavyDownAndLeft,
+                        \ g:forms_BDHeavyDoubleDashVertical,
+                        \ g:forms_BDHeavyUpAndLeft,
+                        \ g:forms_BDHeavyDoubleDashHorizontal,
+                        \ g:forms_BDHeavyUpAndRight,
+                        \ g:forms_BDHeavyDoubleDashVertical
                         \ ]
 
 let s:boxDrawingCharacterSets['light_triple_dash'] = [
-                        \ b:forms_BDLightDownAndRight,
-                        \ b:forms_BDLightTripleDashHorizontal,
-                        \ b:forms_BDLightDownAndLeft,
-                        \ b:forms_BDLightTripleDashVertical,
-                        \ b:forms_BDLightUpAndLeft,
-                        \ b:forms_BDLightTripleDashHorizontal,
-                        \ b:forms_BDLightUpAndRight,
-                        \ b:forms_BDLightTripleDashVertical
+                        \ g:forms_BDLightDownAndRight,
+                        \ g:forms_BDLightTripleDashHorizontal,
+                        \ g:forms_BDLightDownAndLeft,
+                        \ g:forms_BDLightTripleDashVertical,
+                        \ g:forms_BDLightUpAndLeft,
+                        \ g:forms_BDLightTripleDashHorizontal,
+                        \ g:forms_BDLightUpAndRight,
+                        \ g:forms_BDLightTripleDashVertical
                         \ ]
 
 let s:boxDrawingCharacterSets['light_triple_dash_arc'] = [
-                        \ b:forms_BDLightArchDownAndRight,
-                        \ b:forms_BDLightTripleDashHorizontal,
-                        \ b:forms_BDLightArchDownAndLeft,
-                        \ b:forms_BDLightTripleDashVertical,
-                        \ b:forms_BDLightArchUpAndLeft,
-                        \ b:forms_BDLightTripleDashHorizontal,
-                        \ b:forms_BDLightArchUpAndRight,
-                        \ b:forms_BDLightTripleDashVertical
+                        \ g:forms_BDLightArchDownAndRight,
+                        \ g:forms_BDLightTripleDashHorizontal,
+                        \ g:forms_BDLightArchDownAndLeft,
+                        \ g:forms_BDLightTripleDashVertical,
+                        \ g:forms_BDLightArchUpAndLeft,
+                        \ g:forms_BDLightTripleDashHorizontal,
+                        \ g:forms_BDLightArchUpAndRight,
+                        \ g:forms_BDLightTripleDashVertical
                         \ ]
 
 let s:boxDrawingCharacterSets['heavy_triple_dash'] = [
-                        \ b:forms_BDHeavyDownAndRight,
-                        \ b:forms_BDHeavyTripleDashHorizontal,
-                        \ b:forms_BDHeavyDownAndLeft,
-                        \ b:forms_BDHeavyTripleDashVertical,
-                        \ b:forms_BDHeavyUpAndLeft,
-                        \ b:forms_BDHeavyTripleDashHorizontal,
-                        \ b:forms_BDHeavyUpAndRight,
-                        \ b:forms_BDHeavyTripleDashVertical
+                        \ g:forms_BDHeavyDownAndRight,
+                        \ g:forms_BDHeavyTripleDashHorizontal,
+                        \ g:forms_BDHeavyDownAndLeft,
+                        \ g:forms_BDHeavyTripleDashVertical,
+                        \ g:forms_BDHeavyUpAndLeft,
+                        \ g:forms_BDHeavyTripleDashHorizontal,
+                        \ g:forms_BDHeavyUpAndRight,
+                        \ g:forms_BDHeavyTripleDashVertical
                         \ ]
 
 let s:boxDrawingCharacterSets['light_quadruple_dash'] = [
-                        \ b:forms_BDLightDownAndRight,
-                        \ b:forms_BDLightQuadrupleDashHorizontal,
-                        \ b:forms_BDLightDownAndLeft,
-                        \ b:forms_BDLightQuadrupleDashVertical,
-                        \ b:forms_BDLightUpAndLeft,
-                        \ b:forms_BDLightQuadrupleDashHorizontal,
-                        \ b:forms_BDLightUpAndRight,
-                        \ b:forms_BDLightQuadrupleDashVertical
+                        \ g:forms_BDLightDownAndRight,
+                        \ g:forms_BDLightQuadrupleDashHorizontal,
+                        \ g:forms_BDLightDownAndLeft,
+                        \ g:forms_BDLightQuadrupleDashVertical,
+                        \ g:forms_BDLightUpAndLeft,
+                        \ g:forms_BDLightQuadrupleDashHorizontal,
+                        \ g:forms_BDLightUpAndRight,
+                        \ g:forms_BDLightQuadrupleDashVertical
                         \ ]
 
 let s:boxDrawingCharacterSets['light_quadruple_dash_arc'] = [
-                        \ b:forms_BDLightArchDownAndRight,
-                        \ b:forms_BDLightQuadrupleDashHorizontal,
-                        \ b:forms_BDLightArchDownAndLeft,
-                        \ b:forms_BDLightQuadrupleDashVertical,
-                        \ b:forms_BDLightArchUpAndLeft,
-                        \ b:forms_BDLightQuadrupleDashHorizontal,
-                        \ b:forms_BDLightArchUpAndRight,
-                        \ b:forms_BDLightQuadrupleDashVertical
+                        \ g:forms_BDLightArchDownAndRight,
+                        \ g:forms_BDLightQuadrupleDashHorizontal,
+                        \ g:forms_BDLightArchDownAndLeft,
+                        \ g:forms_BDLightQuadrupleDashVertical,
+                        \ g:forms_BDLightArchUpAndLeft,
+                        \ g:forms_BDLightQuadrupleDashHorizontal,
+                        \ g:forms_BDLightArchUpAndRight,
+                        \ g:forms_BDLightQuadrupleDashVertical
                         \ ]
 
 let s:boxDrawingCharacterSets['heavy_quadruple_dash'] = [
-                        \ b:forms_BDHeavyDownAndRight,
-                        \ b:forms_BDHeavyQuadrupleDashHorizontal,
-                        \ b:forms_BDHeavyDownAndLeft,
-                        \ b:forms_BDHeavyQuadrupleDashVertical,
-                        \ b:forms_BDHeavyUpAndLeft,
-                        \ b:forms_BDHeavyQuadrupleDashHorizontal,
-                        \ b:forms_BDHeavyUpAndRight,
-                        \ b:forms_BDHeavyQuadrupleDashVertical
+                        \ g:forms_BDHeavyDownAndRight,
+                        \ g:forms_BDHeavyQuadrupleDashHorizontal,
+                        \ g:forms_BDHeavyDownAndLeft,
+                        \ g:forms_BDHeavyQuadrupleDashVertical,
+                        \ g:forms_BDHeavyUpAndLeft,
+                        \ g:forms_BDHeavyQuadrupleDashHorizontal,
+                        \ g:forms_BDHeavyUpAndRight,
+                        \ g:forms_BDHeavyQuadrupleDashVertical
                         \ ]
 
 let s:boxDrawingCharacterSets['block'] = [
-                        \ b:forms_QuadrantUpperLeftAndUpperRightAndLowerLeft,
-                        \ b:forms_UpperHalfB,
-                        \ b:forms_QuadrantUpperLeftAndUpperRightAndLowerRight,
-                        \ b:forms_RightHalfB,
-                        \ b:forms_QuadrantUpperRightAndLowerLeftAndLowerRight,
-                        \ b:forms_LowerHalfB,
-                        \ b:forms_QuardrantUpperLeftAndLowerLeftAndLowerRight,
-                        \ b:forms_LeftHalfB
+                        \ g:forms_QuadrantUpperLeftAndUpperRightAndLowerLeft,
+                        \ g:forms_UpperHalfB,
+                        \ g:forms_QuadrantUpperLeftAndUpperRightAndLowerRight,
+                        \ g:forms_RightHalfB,
+                        \ g:forms_QuadrantUpperRightAndLowerLeftAndLowerRight,
+                        \ g:forms_LowerHalfB,
+                        \ g:forms_QuardrantUpperLeftAndLowerLeftAndLowerRight,
+                        \ g:forms_LeftHalfB
                         \ ]
 
 let s:boxDrawingCharacterSets['semi_block'] = [
-                        \ b:forms_QuadrantUpperRightAndLowerLeft,
-                        \ b:forms_UpperHalfB,
-                        \ b:forms_QuadrantUpperLeftAndLowerRight,
-                        \ b:forms_RightHalfB,
-                        \ b:forms_QuadrantUpperRightAndLowerLeft,
-                        \ b:forms_LowerHalfB,
-                        \ b:forms_QuadrantUpperLeftAndLowerRight,
-                        \ b:forms_LeftHalfB
+                        \ g:forms_QuadrantUpperRightAndLowerLeft,
+                        \ g:forms_UpperHalfB,
+                        \ g:forms_QuadrantUpperLeftAndLowerRight,
+                        \ g:forms_RightHalfB,
+                        \ g:forms_QuadrantUpperRightAndLowerLeft,
+                        \ g:forms_LowerHalfB,
+                        \ g:forms_QuadrantUpperLeftAndLowerRight,
+                        \ g:forms_LeftHalfB
                         \ ]
 
 let s:boxDrawingCharacterSets['triangle_block'] = [
-                        \ b:forms_GSBlackUpperLeftTriangle,
-                        \ b:forms_UpperOneEighthsB,
-                        \ b:forms_GSBlackUpperRightTriangle,
-                        \ b:forms_RightOneEighthsB,
-                        \ b:forms_GSBlackLowerRightTriangle,
-                        \ b:forms_LowerOneEighthB,
-                        \ b:forms_GSBlackLowerLeftTriangle,
-                        \ b:forms_LeftOneEighthsB
+                        \ g:forms_GSBlackUpperLeftTriangle,
+                        \ g:forms_UpperOneEighthsB,
+                        \ g:forms_GSBlackUpperRightTriangle,
+                        \ g:forms_RightOneEighthsB,
+                        \ g:forms_GSBlackLowerRightTriangle,
+                        \ g:forms_LowerOneEighthB,
+                        \ g:forms_GSBlackLowerLeftTriangle,
+                        \ g:forms_LeftOneEighthsB
                         \ ]
 
 
@@ -14849,9 +16988,9 @@ function! forms#addBoxDrawingCharacterSet(name, dr, uh, dl, rv, ul, lh, ur, lv,)
                             \ a:lv
                             \ ]
 
-    return g:self#IS_TRUE
+    return 1
   else
-    return g:self#IS_FALSE
+    return 0
   endif
 endfunction
 
@@ -14876,27 +17015,27 @@ endfunction
 " Down and Horizontal characters: {{{2
 "----------------------------------------------------------------
 let s:boxDownAndHorizontal = {}
-let s:boxDownAndHorizontal['default'] = b:forms_d
-let s:boxDownAndHorizontal['light']   = b:forms_BDLightDownAndHorizontal 
-let s:boxDownAndHorizontal['light_arc']   = b:forms_BDLightDownAndHorizontal 
-let s:boxDownAndHorizontal['light_double_dash']   = b:forms_BDLightDownAndHorizontal 
-let s:boxDownAndHorizontal['light_double_dash_arc']   = b:forms_BDLightDownAndHorizontal 
-let s:boxDownAndHorizontal['light_triple_dash'] =  b:forms_BDLightDownAndHorizontal
-let s:boxDownAndHorizontal['light_triple_dash_arc'] =  b:forms_BDLightDownAndHorizontal
-let s:boxDownAndHorizontal['light_quadruple_dash'] =  b:forms_BDLightDownAndHorizontal
-let s:boxDownAndHorizontal['light_quadruple_dash_arc'] =  b:forms_BDLightDownAndHorizontal
+let s:boxDownAndHorizontal['default'] = g:forms_d
+let s:boxDownAndHorizontal['light']   = g:forms_BDLightDownAndHorizontal 
+let s:boxDownAndHorizontal['light_arc']   = g:forms_BDLightDownAndHorizontal 
+let s:boxDownAndHorizontal['light_double_dash']   = g:forms_BDLightDownAndHorizontal 
+let s:boxDownAndHorizontal['light_double_dash_arc']   = g:forms_BDLightDownAndHorizontal 
+let s:boxDownAndHorizontal['light_triple_dash'] =  g:forms_BDLightDownAndHorizontal
+let s:boxDownAndHorizontal['light_triple_dash_arc'] =  g:forms_BDLightDownAndHorizontal
+let s:boxDownAndHorizontal['light_quadruple_dash'] =  g:forms_BDLightDownAndHorizontal
+let s:boxDownAndHorizontal['light_quadruple_dash_arc'] =  g:forms_BDLightDownAndHorizontal
 
 
-let s:boxDownAndHorizontal['heavy']   = b:forms_BDHeavyDownAndHorizontal
-let s:boxDownAndHorizontal['heavy_double_dash'] = b:forms_BDHeavyDownAndHorizontal
-let s:boxDownAndHorizontal['heavy_triple_dash'] = b:forms_BDHeavyDownAndHorizontal
-let s:boxDownAndHorizontal['heavy_quadruple_dash'] = b:forms_BDHeavyDownAndHorizontal
+let s:boxDownAndHorizontal['heavy']   = g:forms_BDHeavyDownAndHorizontal
+let s:boxDownAndHorizontal['heavy_double_dash'] = g:forms_BDHeavyDownAndHorizontal
+let s:boxDownAndHorizontal['heavy_triple_dash'] = g:forms_BDHeavyDownAndHorizontal
+let s:boxDownAndHorizontal['heavy_quadruple_dash'] = g:forms_BDHeavyDownAndHorizontal
 
-let s:boxDownAndHorizontal['double']  = b:forms_BDDoubleDownAndHorizontal
+let s:boxDownAndHorizontal['double']  = g:forms_BDDoubleDownAndHorizontal
 
-let s:boxDownAndHorizontal['block'] = b:forms_FullB
-let s:boxDownAndHorizontal['semi_block'] = b:forms_FullB
-let s:boxDownAndHorizontal['triangle_block'] = b:forms_FullB
+let s:boxDownAndHorizontal['block'] = g:forms_FullB
+let s:boxDownAndHorizontal['semi_block'] = g:forms_FullB
+let s:boxDownAndHorizontal['triangle_block'] = g:forms_FullB
 
 function! forms#LookupDownAndHorizontal(name)
   if has_key(s:boxDownAndHorizontal, a:name)
@@ -14914,27 +17053,27 @@ endfunction
 " Up and Horizontal characters: {{{2
 "----------------------------------------------------------------
 let s:boxUpAndHorizontal = {}
-let s:boxUpAndHorizontal['default'] = b:forms_u
-let s:boxUpAndHorizontal['light']   = b:forms_BDLightUpAndHorizontal 
-let s:boxUpAndHorizontal['light_arc']   = b:forms_BDLightUpAndHorizontal 
-let s:boxUpAndHorizontal['light_double_dash']   = b:forms_BDLightUpAndHorizontal 
-let s:boxUpAndHorizontal['light_double_dash_arc']   = b:forms_BDLightUpAndHorizontal 
-let s:boxUpAndHorizontal['light_triple_dash'] =  b:forms_BDLightUpAndHorizontal
-let s:boxUpAndHorizontal['light_triple_dash_arc'] =  b:forms_BDLightUpAndHorizontal
-let s:boxUpAndHorizontal['light_quadruple_dash'] =  b:forms_BDLightUpAndHorizontal
-let s:boxUpAndHorizontal['light_quadruple_dash_arc'] =  b:forms_BDLightUpAndHorizontal
+let s:boxUpAndHorizontal['default'] = g:forms_u
+let s:boxUpAndHorizontal['light']   = g:forms_BDLightUpAndHorizontal 
+let s:boxUpAndHorizontal['light_arc']   = g:forms_BDLightUpAndHorizontal 
+let s:boxUpAndHorizontal['light_double_dash']   = g:forms_BDLightUpAndHorizontal 
+let s:boxUpAndHorizontal['light_double_dash_arc']   = g:forms_BDLightUpAndHorizontal 
+let s:boxUpAndHorizontal['light_triple_dash'] =  g:forms_BDLightUpAndHorizontal
+let s:boxUpAndHorizontal['light_triple_dash_arc'] =  g:forms_BDLightUpAndHorizontal
+let s:boxUpAndHorizontal['light_quadruple_dash'] =  g:forms_BDLightUpAndHorizontal
+let s:boxUpAndHorizontal['light_quadruple_dash_arc'] =  g:forms_BDLightUpAndHorizontal
 
 
-let s:boxUpAndHorizontal['heavy']   = b:forms_BDHeavyUpAndHorizontal
-let s:boxUpAndHorizontal['heavy_double_dash'] = b:forms_BDHeavyUpAndHorizontal
-let s:boxUpAndHorizontal['heavy_triple_dash'] = b:forms_BDHeavyUpAndHorizontal
-let s:boxUpAndHorizontal['heavy_quadruple_dash'] = b:forms_BDHeavyUpAndHorizontal
+let s:boxUpAndHorizontal['heavy']   = g:forms_BDHeavyUpAndHorizontal
+let s:boxUpAndHorizontal['heavy_double_dash'] = g:forms_BDHeavyUpAndHorizontal
+let s:boxUpAndHorizontal['heavy_triple_dash'] = g:forms_BDHeavyUpAndHorizontal
+let s:boxUpAndHorizontal['heavy_quadruple_dash'] = g:forms_BDHeavyUpAndHorizontal
 
-let s:boxUpAndHorizontal['double'] = b:forms_BDDoubleUpAndHorizontal
+let s:boxUpAndHorizontal['double'] = g:forms_BDDoubleUpAndHorizontal
 
-let s:boxUpAndHorizontal['block'] = b:forms_FullB
-let s:boxUpAndHorizontal['semi_block'] = b:forms_FullB
-let s:boxUpAndHorizontal['triangle_block'] = b:forms_FullB
+let s:boxUpAndHorizontal['block'] = g:forms_FullB
+let s:boxUpAndHorizontal['semi_block'] = g:forms_FullB
+let s:boxUpAndHorizontal['triangle_block'] = g:forms_FullB
 
 function! forms#LookupUpAndHorizontal(name)
   if has_key(s:boxUpAndHorizontal, a:name)
@@ -14953,27 +17092,27 @@ endfunction
 " Left and Vertical characters: {{{2
 "----------------------------------------------------------------
 let s:boxVerticalAndLeft = {}
-let s:boxVerticalAndLeft['default'] = b:forms_l
-let s:boxVerticalAndLeft['light']   = b:forms_BDLightVerticalAndLeft 
-let s:boxVerticalAndLeft['light_arc']   = b:forms_BDLightVerticalAndLeft 
-let s:boxVerticalAndLeft['light_double_dash']   = b:forms_BDLightVerticalAndLeft 
-let s:boxVerticalAndLeft['light_double_dash_arc']   = b:forms_BDLightVerticalAndLeft 
-let s:boxVerticalAndLeft['light_triple_dash'] =  b:forms_BDLightVerticalAndLeft
-let s:boxVerticalAndLeft['light_triple_dash_arc'] =  b:forms_BDLightVerticalAndLeft
-let s:boxVerticalAndLeft['light_quadruple_dash'] =  b:forms_BDLightVerticalAndLeft
-let s:boxVerticalAndLeft['light_quadruple_dash_arc'] =  b:forms_BDLightVerticalAndLeft
+let s:boxVerticalAndLeft['default'] = g:forms_l
+let s:boxVerticalAndLeft['light']   = g:forms_BDLightVerticalAndLeft 
+let s:boxVerticalAndLeft['light_arc']   = g:forms_BDLightVerticalAndLeft 
+let s:boxVerticalAndLeft['light_double_dash']   = g:forms_BDLightVerticalAndLeft 
+let s:boxVerticalAndLeft['light_double_dash_arc']   = g:forms_BDLightVerticalAndLeft 
+let s:boxVerticalAndLeft['light_triple_dash'] =  g:forms_BDLightVerticalAndLeft
+let s:boxVerticalAndLeft['light_triple_dash_arc'] =  g:forms_BDLightVerticalAndLeft
+let s:boxVerticalAndLeft['light_quadruple_dash'] =  g:forms_BDLightVerticalAndLeft
+let s:boxVerticalAndLeft['light_quadruple_dash_arc'] =  g:forms_BDLightVerticalAndLeft
 
 
-let s:boxVerticalAndLeft['heavy']   = b:forms_BDHeavyVerticalAndLeft
-let s:boxVerticalAndLeft['heavy_double_dash'] = b:forms_BDHeavyVerticalAndLeft
-let s:boxVerticalAndLeft['heavy_triple_dash'] = b:forms_BDHeavyVerticalAndLeft
-let s:boxVerticalAndLeft['heavy_quadruple_dash'] = b:forms_BDHeavyVerticalAndLeft
+let s:boxVerticalAndLeft['heavy']   = g:forms_BDHeavyVerticalAndLeft
+let s:boxVerticalAndLeft['heavy_double_dash'] = g:forms_BDHeavyVerticalAndLeft
+let s:boxVerticalAndLeft['heavy_triple_dash'] = g:forms_BDHeavyVerticalAndLeft
+let s:boxVerticalAndLeft['heavy_quadruple_dash'] = g:forms_BDHeavyVerticalAndLeft
 
-let s:boxVerticalAndLeft['double']  = b:forms_BDDoubleVerticalAndLeft
+let s:boxVerticalAndLeft['double']  = g:forms_BDDoubleVerticalAndLeft
 
-let s:boxVerticalAndLeft['block'] = b:forms_FullB
-let s:boxVerticalAndLeft['semi_block'] = b:forms_FullB
-let s:boxVerticalAndLeft['triangle_block'] = b:forms_FullB
+let s:boxVerticalAndLeft['block'] = g:forms_FullB
+let s:boxVerticalAndLeft['semi_block'] = g:forms_FullB
+let s:boxVerticalAndLeft['triangle_block'] = g:forms_FullB
 
 function! forms#LookupVerticalAndLeft(name)
   if has_key(s:boxVerticalAndLeft, a:name)
@@ -14991,27 +17130,27 @@ endfunction
 " Up and Vertical characters: {{{2
 "----------------------------------------------------------------
 let s:boxVerticalAndRight = {}
-let s:boxVerticalAndRight['default'] = b:forms_r
-let s:boxVerticalAndRight['light']   = b:forms_BDLightVerticalAndRight 
-let s:boxVerticalAndRight['light_arc']   = b:forms_BDLightVerticalAndRight 
-let s:boxVerticalAndRight['light_double_dash']   = b:forms_BDLightVerticalAndRight 
-let s:boxVerticalAndRight['light_double_dash_arc']   = b:forms_BDLightVerticalAndRight 
-let s:boxVerticalAndRight['light_triple_dash'] =  b:forms_BDLightVerticalAndRight
-let s:boxVerticalAndRight['light_triple_dash_arc'] =  b:forms_BDLightVerticalAndRight
-let s:boxVerticalAndRight['light_quadruple_dash'] =  b:forms_BDLightVerticalAndRight
-let s:boxVerticalAndRight['light_quadruple_dash_arc'] =  b:forms_BDLightVerticalAndRight
+let s:boxVerticalAndRight['default'] = g:forms_r
+let s:boxVerticalAndRight['light']   = g:forms_BDLightVerticalAndRight 
+let s:boxVerticalAndRight['light_arc']   = g:forms_BDLightVerticalAndRight 
+let s:boxVerticalAndRight['light_double_dash']   = g:forms_BDLightVerticalAndRight 
+let s:boxVerticalAndRight['light_double_dash_arc']   = g:forms_BDLightVerticalAndRight 
+let s:boxVerticalAndRight['light_triple_dash'] =  g:forms_BDLightVerticalAndRight
+let s:boxVerticalAndRight['light_triple_dash_arc'] =  g:forms_BDLightVerticalAndRight
+let s:boxVerticalAndRight['light_quadruple_dash'] =  g:forms_BDLightVerticalAndRight
+let s:boxVerticalAndRight['light_quadruple_dash_arc'] =  g:forms_BDLightVerticalAndRight
 
 
-let s:boxVerticalAndRight['heavy']   = b:forms_BDHeavyVerticalAndRight
-let s:boxVerticalAndRight['heavy_double_dash'] = b:forms_BDHeavyVerticalAndRight
-let s:boxVerticalAndRight['heavy_triple_dash'] = b:forms_BDHeavyVerticalAndRight
-let s:boxVerticalAndRight['heavy_quadruple_dash'] = b:forms_BDHeavyVerticalAndRight
+let s:boxVerticalAndRight['heavy']   = g:forms_BDHeavyVerticalAndRight
+let s:boxVerticalAndRight['heavy_double_dash'] = g:forms_BDHeavyVerticalAndRight
+let s:boxVerticalAndRight['heavy_triple_dash'] = g:forms_BDHeavyVerticalAndRight
+let s:boxVerticalAndRight['heavy_quadruple_dash'] = g:forms_BDHeavyVerticalAndRight
 
-let s:boxVerticalAndRight['double'] = b:forms_BDDoubleVerticalAndRight
+let s:boxVerticalAndRight['double'] = g:forms_BDDoubleVerticalAndRight
 
-let s:boxVerticalAndRight['block'] = b:forms_FullB
-let s:boxVerticalAndRight['semi_block'] = b:forms_FullB
-let s:boxVerticalAndRight['triangle_block'] = b:forms_FullB
+let s:boxVerticalAndRight['block'] = g:forms_FullB
+let s:boxVerticalAndRight['semi_block'] = g:forms_FullB
+let s:boxVerticalAndRight['triangle_block'] = g:forms_FullB
 
 function! forms#LookupVerticalAndRight(name)
   if has_key(s:boxVerticalAndRight, a:name)
@@ -15029,27 +17168,27 @@ endfunction
 " Vertical and Horizontal characters: {{{2
 "----------------------------------------------------------------
 let s:boxVerticalAndHorizontal = {}
-let s:boxVerticalAndHorizontal['default'] = b:forms_r
-let s:boxVerticalAndHorizontal['light']   = b:forms_BDLightVerticalAndHorizontal 
-let s:boxVerticalAndHorizontal['light_arc']   = b:forms_BDLightVerticalAndHorizontal 
-let s:boxVerticalAndHorizontal['light_double_dash']   = b:forms_BDLightVerticalAndHorizontal 
-let s:boxVerticalAndHorizontal['light_double_dash_arc']   = b:forms_BDLightVerticalAndHorizontal 
-let s:boxVerticalAndHorizontal['light_triple_dash'] =  b:forms_BDLightVerticalAndHorizontal
-let s:boxVerticalAndHorizontal['light_triple_dash_arc'] =  b:forms_BDLightVerticalAndHorizontal
-let s:boxVerticalAndHorizontal['light_quadruple_dash'] =  b:forms_BDLightVerticalAndHorizontal
-let s:boxVerticalAndHorizontal['light_quadruple_dash_arc'] =  b:forms_BDLightVerticalAndHorizontal
+let s:boxVerticalAndHorizontal['default'] = g:forms_r
+let s:boxVerticalAndHorizontal['light']   = g:forms_BDLightVerticalAndHorizontal 
+let s:boxVerticalAndHorizontal['light_arc']   = g:forms_BDLightVerticalAndHorizontal 
+let s:boxVerticalAndHorizontal['light_double_dash']   = g:forms_BDLightVerticalAndHorizontal 
+let s:boxVerticalAndHorizontal['light_double_dash_arc']   = g:forms_BDLightVerticalAndHorizontal 
+let s:boxVerticalAndHorizontal['light_triple_dash'] =  g:forms_BDLightVerticalAndHorizontal
+let s:boxVerticalAndHorizontal['light_triple_dash_arc'] =  g:forms_BDLightVerticalAndHorizontal
+let s:boxVerticalAndHorizontal['light_quadruple_dash'] =  g:forms_BDLightVerticalAndHorizontal
+let s:boxVerticalAndHorizontal['light_quadruple_dash_arc'] =  g:forms_BDLightVerticalAndHorizontal
 
 
-let s:boxVerticalAndHorizontal['heavy']   = b:forms_BDHeavyVerticalAndHorizontal
-let s:boxVerticalAndHorizontal['heavy_double_dash'] = b:forms_BDHeavyVerticalAndHorizontal
-let s:boxVerticalAndHorizontal['heavy_triple_dash'] = b:forms_BDHeavyVerticalAndHorizontal
-let s:boxVerticalAndHorizontal['heavy_quadruple_dash'] = b:forms_BDHeavyVerticalAndHorizontal
+let s:boxVerticalAndHorizontal['heavy']   = g:forms_BDHeavyVerticalAndHorizontal
+let s:boxVerticalAndHorizontal['heavy_double_dash'] = g:forms_BDHeavyVerticalAndHorizontal
+let s:boxVerticalAndHorizontal['heavy_triple_dash'] = g:forms_BDHeavyVerticalAndHorizontal
+let s:boxVerticalAndHorizontal['heavy_quadruple_dash'] = g:forms_BDHeavyVerticalAndHorizontal
 
-let s:boxVerticalAndHorizontal['double'] = b:forms_BDDoubleVerticalAndHorizontal
+let s:boxVerticalAndHorizontal['double'] = g:forms_BDDoubleVerticalAndHorizontal
 
-let s:boxVerticalAndHorizontal['block'] = b:forms_FullB
-let s:boxVerticalAndHorizontal['semi_block'] = b:forms_FullB
-let s:boxVerticalAndHorizontal['triangle_block'] = b:forms_FullB
+let s:boxVerticalAndHorizontal['block'] = g:forms_FullB
+let s:boxVerticalAndHorizontal['semi_block'] = g:forms_FullB
+let s:boxVerticalAndHorizontal['triangle_block'] = g:forms_FullB
 
 function! forms#LookupVerticalAndHorizontal(name)
   if has_key(s:boxVerticalAndHorizontal, a:name)
@@ -15483,11 +17622,11 @@ function! forms#DrawFrame(corner, line, column, width, height)
   let w = a:width
   let h = a:height
 
-  let fb =  b:forms_FullB
+  let fb =  g:forms_FullB
 
   if corner == 'ul'
     " draw ll
-    call forms#SetCharAt(b:forms_GSBlackUpperLeftTriangle, l+h-1, c)
+    call forms#SetCharAt(g:forms_GSBlackUpperLeftTriangle, l+h-1, c)
 
     " draw left and ul
     let cnt = 1
@@ -15501,11 +17640,11 @@ function! forms#DrawFrame(corner, line, column, width, height)
     call forms#SetHCharsAt(fb, w-1, l, c)
 
     " draw ur
-    call forms#SetCharAt(b:forms_GSBlackUpperLeftTriangle, l, c+w-1)
+    call forms#SetCharAt(g:forms_GSBlackUpperLeftTriangle, l, c+w-1)
 
   elseif corner == 'ur'
     " draw ul
-    call forms#SetCharAt(b:forms_GSBlackUpperRightTriangle, l, c)
+    call forms#SetCharAt(g:forms_GSBlackUpperRightTriangle, l, c)
 
     " draw top and ur
     call forms#SetHCharsAt(fb, w-1, l, c+1)
@@ -15519,11 +17658,11 @@ function! forms#DrawFrame(corner, line, column, width, height)
     endwhile
 
     " draw lr
-    call forms#SetCharAt(b:forms_GSBlackUpperRightTriangle, l+h-1, c+w-1)
+    call forms#SetCharAt(g:forms_GSBlackUpperRightTriangle, l+h-1, c+w-1)
 
   elseif corner == 'll'
     " draw ul
-    call forms#SetCharAt(b:forms_GSBlackLowerLeftTriangle, l, c)
+    call forms#SetCharAt(g:forms_GSBlackLowerLeftTriangle, l, c)
     
     " draw left
     let cnt = 1
@@ -15537,11 +17676,11 @@ function! forms#DrawFrame(corner, line, column, width, height)
     call forms#SetHCharsAt(fb, w-1, l+h-1, c)
     
     " draw lr
-    call forms#SetCharAt(b:forms_GSBlackLowerLeftTriangle, l+h-1, c+w-1)
+    call forms#SetCharAt(g:forms_GSBlackLowerLeftTriangle, l+h-1, c+w-1)
 
   elseif corner == 'lr'
     " draw ll
-    call forms#SetCharAt(b:forms_GSBlackLowerRightTriangle, l+h-1, c)
+    call forms#SetCharAt(g:forms_GSBlackLowerRightTriangle, l+h-1, c)
 
     " draw bottom and lr
     call forms#SetHCharsAt(fb, w-1, l+h-1, c+1)
@@ -15555,7 +17694,7 @@ function! forms#DrawFrame(corner, line, column, width, height)
     endwhile
 
     " draw ur
-    call forms#SetCharAt(b:forms_GSBlackLowerRightTriangle, l, c+w-1)
+    call forms#SetCharAt(g:forms_GSBlackLowerRightTriangle, l, c+w-1)
   else
     throw "DrawDropShadow: Bad corner name: " . string(corner)
   endif
@@ -15585,11 +17724,11 @@ function! forms#DrawDropShadow(corner, line, column, width, height)
   let w = a:width
   let h = a:height
 
-  let fb =  b:forms_FullB
+  let fb =  g:forms_FullB
 
   if corner == 'ul'
     " draw ll
-    call forms#SetCharAt(b:forms_GSBlackUpperRightTriangle, l+h, c)
+    call forms#SetCharAt(g:forms_GSBlackUpperRightTriangle, l+h, c)
 
     " draw left and ul
     let cnt = 1
@@ -15603,11 +17742,11 @@ function! forms#DrawDropShadow(corner, line, column, width, height)
     call forms#SetHCharsAt(fb, w, l, c)
 
     " draw ur
-    call forms#SetCharAt(b:forms_GSBlackLowerLeftTriangle, l, c+w)
+    call forms#SetCharAt(g:forms_GSBlackLowerLeftTriangle, l, c+w)
 
   elseif corner == 'ur'
     " draw ul
-    call forms#SetCharAt(b:forms_GSBlackLowerRightTriangle, l, c)
+    call forms#SetCharAt(g:forms_GSBlackLowerRightTriangle, l, c)
 
     " draw top and ur
     call forms#SetHCharsAt(fb, w, l, c+1)
@@ -15621,11 +17760,11 @@ function! forms#DrawDropShadow(corner, line, column, width, height)
     endwhile
 
     " draw lr
-    call forms#SetCharAt(b:forms_GSBlackUpperLeftTriangle, l+h, c+w)
+    call forms#SetCharAt(g:forms_GSBlackUpperLeftTriangle, l+h, c+w)
 
   elseif corner == 'll'
     " draw ul
-    call forms#SetCharAt(b:forms_GSBlackLowerRightTriangle, l, c)
+    call forms#SetCharAt(g:forms_GSBlackLowerRightTriangle, l, c)
     
     " draw left
     let cnt = 1
@@ -15639,11 +17778,11 @@ function! forms#DrawDropShadow(corner, line, column, width, height)
     call forms#SetHCharsAt(fb, w, l+h, c)
     
     " draw lr
-    call forms#SetCharAt(b:forms_GSBlackUpperLeftTriangle, l+h, c+w)
+    call forms#SetCharAt(g:forms_GSBlackUpperLeftTriangle, l+h, c+w)
 
   elseif corner == 'lr'
     " draw ll
-    call forms#SetCharAt(b:forms_GSBlackUpperRightTriangle, l+h, c)
+    call forms#SetCharAt(g:forms_GSBlackUpperRightTriangle, l+h, c)
 
     " draw bottom and lr
     call forms#SetHCharsAt(fb, w, l+h, c+1)
@@ -15657,7 +17796,7 @@ function! forms#DrawDropShadow(corner, line, column, width, height)
     endwhile
 
     " draw ur
-    call forms#SetCharAt(b:forms_GSBlackLowerLeftTriangle, l, c+w)
+    call forms#SetCharAt(g:forms_GSBlackLowerLeftTriangle, l, c+w)
   else
     throw "DrawDropShadow: Bad corner name: " . string(corner)
   endif

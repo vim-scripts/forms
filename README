@@ -33,6 +33,7 @@ https://github.com/megaannum/forms/tree/master/images/examples_palletdesigner.pn
 https://github.com/megaannum/forms/tree/master/images/examples_popdownlist.png
 https://github.com/megaannum/forms/tree/master/images/examples_radiobuttons.png
 https://github.com/megaannum/forms/tree/master/images/examples_resize.png
+https://github.com/megaannum/forms/tree/master/images/examples_runtimepathviewer.png
 https://github.com/megaannum/forms/tree/master/images/examples_selectlists.png
 https://github.com/megaannum/forms/tree/master/images/examples_sliders.png
 https://github.com/megaannum/forms/tree/master/images/examples_subform.png
@@ -40,6 +41,7 @@ https://github.com/megaannum/forms/tree/master/images/examples_texteditor.png
 https://github.com/megaannum/forms/tree/master/images/examples_textsearch.png
 https://github.com/megaannum/forms/tree/master/images/examples_textsearchreplace.png
 https://github.com/megaannum/forms/tree/master/images/examples_togglebuttons.png
+https://github.com/megaannum/forms/tree/master/images/examples_vimhomeviewer.png
 https://github.com/megaannum/forms/tree/master/images/examples_vlabels.png
 
 Code for the above examples can be found at:
@@ -47,7 +49,8 @@ https://github.com/megaannum/forms/blob/master/autoload/forms/menu.vim
 https://github.com/megaannum/forms/tree/master/autoload/forms/dialog
 https://github.com/megaannum/forms/tree/master/autoload/forms/example
 
-Forms tutorial: https://github.com/megaannum/forms/blob/master/tutorial/forms/Tutorial.md
+Forms tutorial:
+https://github.com/megaannum/forms/blob/master/tutorial/forms/Tutorial.md
 
 A user can always stop a form with no side effects by entering <Esc>.
 This is basically a "panic button"; the user wants out.
@@ -75,6 +78,9 @@ stating that fact along with a suggested size to enlarge the window to
 so that the form will fit. If the window is too small even to display
 the information form, an error message is output (via a thrown exception).
 
+A form can be displayed over the current text or the form can create a new tab
+and displayed there.
+
 Strictly speaking, the Forms library is a library and, so, there ought not
 be any mappings. But, while developing Forms a number of examples were
 created which, it turns out, were critical for uncovering bugs, missing
@@ -86,7 +92,7 @@ as superfluous, covering Vim commands that are know by heart, so to
 power users disdain the GVim menu/popup - so, the power user is not
 the target user.  Rather, the same users that find the GVim menu/popup
 useful will find the Forms menu/popup equally useful.
-Here are the mappings for the menu and popup: 
+Here are the mappings for the menu and popup:
 
     nmap <Leader>m :call forms#menu#MakeMenu('n')<CR>
     vmap <Leader>m :call forms#menu#MakeMenu('v')<CR>
@@ -115,5 +121,9 @@ reasonable.
 
 Source can be found at: https://github.com/megaannum/forms
 
-The Forms library is currently being used in the following scripts: 
-http://www.vim.org/scripts/script.php?script_id=4240
+The Forms library is currently being used in the following scripts:
+Colorschemer utility
+  http://www.vim.org/scripts/script.php?script_id=4240
+Vimside, Vim Scala IDE
+  http://www.vim.org/scripts/script.php?script_id=4298
+
